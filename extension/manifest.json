@@ -1,0 +1,68 @@
+{
+  "manifest_version": 3,
+  "name": "TradeCoach Sync",
+  "version": "0.4.0",
+  "description": "Automatically sync Tradovate and NinjaTrader Web trades with TradeCoach AI.",
+  "permissions": [
+  "version": "0.5.3",
+    "tabs",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://trader.tradovate.com/*",
+    "https://web-trader.ninjatrader.com/*",
+    "http://localhost:3000/*",
+    "http://localhost:8000/*"
+  ],
+    "alarms",
+
+    "scripting"
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "TradeCoach Sync",
+    "default_popup": "popup.html"
+    "https://*.tradovate.com/*",
+
+    "https://trader.tradovate.com/*",
+
+    "https://web-trader.ninjatrader.com/*",
+
+    "https://*/*",
+
+    "http://localhost:3000/*",
+
+    "http://127.0.0.1:3000/*",
+      ],
+      "js": [
+        "page-bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://web-trader.ninjatrader.com/*"
+      ],
+      "js": [
+        "page-bridge-ninjatrader.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://trader.tradovate.com/*",
+        "https://web-trader.ninjatrader.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+        "https://*.tradovate.com/*",
+
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    }
+  ]
+}
+

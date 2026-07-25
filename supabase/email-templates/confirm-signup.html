@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirm your TradeCoach AI account</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background: #020617;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #e2e8f0;
+    "
+  >
+    <table
+      role="presentation"
+      width="100%"
+      cellspacing="0"
+      cellpadding="0"
+      style="background: #020617; padding: 32px 16px"
+    >
+      <tr>
+        <td align="center">
+          <table
+            role="presentation"
+            width="100%"
+            cellspacing="0"
+            cellpadding="0"
+            style="
+              max-width: 560px;
+              background: #0f172a;
+              border: 1px solid #1e293b;
+              border-radius: 24px;
+              overflow: hidden;
+            "
+          >
+            <tr>
+              <td style="padding: 32px 32px 12px">
+                <p
+                  style="
+                    margin: 0;
+                    color: #22d3ee;
+                    font-size: 12px;
+                    font-weight: 700;
+                    letter-spacing: 0.18em;
+                    text-transform: uppercase;
+                  "
+                >
+                  TradeCoach AI
+                </p>
+                <h1
+                  style="
+                    margin: 12px 0 0;
+                    color: #ffffff;
+                    font-size: 28px;
+                    line-height: 1.2;
+                  "
+                >
+                  Confirm your email
+                </h1>
+                <p
+                  style="
+                    margin: 16px 0 0;
+                    color: #94a3b8;
+                    font-size: 16px;
+                    line-height: 1.7;
+                  "
+                >
+                  Thanks for signing up. Confirm
+                  <strong style="color: #ffffff">{{ .Email }}</strong>
+                  to finish creating your TradeCoach AI account and start your
+                  coaching setup.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 32px 32px">
+                <a
+                  href="{{ .ConfirmationURL }}"
+                  style="
+                    display: inline-block;
+                    background: #22d3ee;
+                    color: #020617;
+                    text-decoration: none;
+                    font-size: 16px;
+                    font-weight: 700;
+                    padding: 14px 22px;
+                    border-radius: 12px;
+                  "
+                >
+                  Confirm email address
+                </a>
+                <p
+                  style="
+                    margin: 24px 0 0;
+                    color: #64748b;
+                    font-size: 13px;
+                    line-height: 1.7;
+                  "
+                >
+                  If the button does not work, copy and paste this link into
+                  your browser:
+                </p>
+                <p style="margin: 8px 0 0; word-break: break-all">
+                  <a
+                    href="{{ .ConfirmationURL }}"
+                    style="color: #22d3ee; font-size: 13px"
+                    >{{ .ConfirmationURL }}</a
+                  >
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="
+                  padding: 20px 32px 28px;
+                  border-top: 1px solid #1e293b;
+                  background: #020617;
+                "
+              >
+                <p
+                  style="
+                    margin: 0;
+                    color: #64748b;
+                    font-size: 12px;
+                    line-height: 1.7;
+                  "
+                >
+                  If you did not create a TradeCoach AI account, you can ignore
+                  this email.
+                </p>
+                <p style="margin: 12px 0 0; color: #475569; font-size: 12px">
+                  TradeCoach AI · Your personal trading coach
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

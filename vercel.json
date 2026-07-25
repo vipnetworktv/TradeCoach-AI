@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/notifications?type=daily",
+      "schedule": "0 1 * * 2-6"
+    },
+    {
+      "path": "/api/cron/notifications?type=weekly",
+      "schedule": "0 2 * * 1"
+    },
+    {
+      "path": "/api/cron/notifications?type=monthly",
+      "schedule": "0 12 1 * *"
+    },
+    {
+      "path": "/api/cron/notifications?type=sync",
+      "schedule": "0 13 * * *"
+    }
+  ]
+}

@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+
+    <title>TradeCoach Sync</title>
+
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 360px;
+        margin: 0;
+        padding: 20px;
+
+        color: #e2e8f0;
+        background: #020617;
+
+        font-family:
+          Inter,
+          Arial,
+          Helvetica,
+          sans-serif;
+      }
+
+      h1 {
+        margin: 0;
+        color: #ffffff;
+        font-size: 20px;
+      }
+
+      .subtitle {
+        margin: 7px 0 0;
+        color: #7dd3fc;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .card {
+        margin-top: 18px;
+        padding: 16px;
+
+        border: 1px solid #334155;
+        border-radius: 14px;
+
+        background: #0f172a;
+      }
+
+      .status-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .status-dot {
+        width: 10px;
+        height: 10px;
+
+        flex: 0 0 auto;
+
+        border-radius: 999px;
+        background: #64748b;
+      }
+
+      .status-dot.connected {
+        background: #34d399;
+
+        box-shadow:
+          0 0 12px
+          rgba(52, 211, 153, 0.5);
+      }
+
+      .status-dot.warning {
+        background: #fbbf24;
+      }
+
+      .status-dot.error {
+        background: #fb7185;
+      }
+
+      .status-title {
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .status-message {
+        margin-top: 10px;
+
+        color: #94a3b8;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .pairing-section {
+        margin-top: 18px;
+      }
+
+      .pairing-label {
+        display: block;
+        margin-bottom: 8px;
+
+        color: #cbd5e1;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .pairing-input {
+        width: 100%;
+        min-height: 46px;
+
+        border: 1px solid #334155;
+        border-radius: 11px;
+
+        outline: none;
+
+        color: #ffffff;
+        background: #020617;
+
+        font-family: monospace;
+        font-size: 19px;
+        font-weight: 700;
+
+        letter-spacing: 0.16em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .pairing-input:focus {
+        border-color: #22d3ee;
+
+        box-shadow:
+          0 0 0 3px
+          rgba(34, 211, 238, 0.1);
+      }
+
+      .pairing-message,
+      .test-message {
+        min-height: 18px;
+        margin-top: 10px;
+
+        color: #94a3b8;
+        font-size: 11px;
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      .pairing-message.success,
+      .test-message.success {
+        color: #6ee7b7;
+      }
+
+      .pairing-message.error,
+      .test-message.error {
+        color: #fda4af;
+      }
+
+      button {
+        width: 100%;
+        min-height: 44px;
+
+        border: 0;
+        border-radius: 11px;
+
+        color: #082f49;
+        background: #22d3ee;
+
+        font-size: 13px;
+        font-weight: 700;
+
+        cursor: pointer;
+      }
+
+      button:hover:not(:disabled) {
+        background: #67e8f9;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .pair-button {
+        margin-top: 12px;
+      }
+
+      .secondary-button {
+        margin-top: 12px;
+
+        border: 1px solid #334155;
+
+        color: #e2e8f0;
+        background: #0f172a;
+      }
+
+      .secondary-button:hover:not(:disabled) {
+        background: #1e293b;
+      }
+
+      .test-button {
+        margin-top: 14px;
+
+        color: #052e16;
+        background: #34d399;
+      }
+
+      .test-button:hover:not(:disabled) {
+        background: #6ee7b7;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      .debug-info {
+        margin-top: 14px;
+        padding: 10px 12px;
+
+        border: 1px dashed #334155;
+        border-radius: 10px;
+
+        color: #64748b;
+        background: #020617;
+
+        font-family: monospace;
+        font-size: 10px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+
+      .connect-tab-button {
+        margin-top: 10px;
+
+        color: #052e16;
+        background: #34d399;
+      }
+
+      .connect-tab-button:hover:not(:disabled) {
+        background: #6ee7b7;
+      }
+
+      .privacy {
+        margin: 15px 0 0;
+
+        color: #64748b;
+        font-size: 10px;
+        line-height: 1.5;
+        text-align: center;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>TradeCoach Sync</h1>
+
+    <p class="subtitle">
+      Automatically sync and grade your Tradovate and NinjaTrader Web trades.
+    </p>
+    <div class="card">
+      <div class="status-row">
+        <div
+          id="tradecoach-status-dot"
+          class="status-dot"
+        ></div>
+
+        <div
+          id="tradecoach-status-title"
+          class="status-title"
+        >
+          Checking TradeCoach
+        </div>
+      </div>
+
+      <div
+        id="tradecoach-status-message"
+        class="status-message"
+      >
+        Checking whether this extension is paired...
+      </div>
+    </div>
+
+    <div
+      id="pairing-section"
+      class="pairing-section"
+    >
+      <label
+        for="pairing-code"
+        class="pairing-label"
+      >
+        TradeCoach pairing code
+      </label>
+
+      <input
+        id="pairing-code"
+        class="pairing-input"
+        type="text"
+        inputmode="text"
+        maxlength="9"
+        placeholder="ABCD-1234"
+        autocomplete="off"
+        spellcheck="false"
+      />
+
+      <button
+        id="pair-device"
+        class="pair-button"
+        type="button"
+      >
+        Pair TradeCoach Sync
+      </button>
+
+      <div
+        id="pairing-message"
+        class="pairing-message"
+      ></div>
+    </div>
+
+    <div class="card">
+      <div class="status-row">
+        <div
+          id="tradovate-status-dot"
+          class="status-dot"
+        ></div>
+
+        <div
+          id="tradovate-status-title"
+          class="status-title"
+        >
+          Checking Tradovate
+        </div>
+      </div>
+
+      <div
+        id="tradovate-status-message"
+        class="status-message"
+      >
+        Looking for an open Tradovate session...
+      </div>
+
+      <button
+        id="connect-tradovate-tab"
+        class="connect-tab-button hidden"
+        type="button"
+      >
+        Connect this Tradovate tab
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="status-row">
+        <div
+          id="ninjatrader-status-dot"
+          class="status-dot"
+        ></div>
+
+        <div
+          id="ninjatrader-status-title"
+          class="status-title"
+        >
+          Checking NinjaTrader Web
+        </div>
+      </div>
+
+      <div
+        id="ninjatrader-status-message"
+        class="status-message"
+      >
+        Looking for an open NinjaTrader Web session...
+      </div>
+
+      <button
+        id="connect-ninjatrader-tab"
+        class="connect-tab-button hidden"
+        type="button"
+      >
+        Connect this NinjaTrader tab
+      </button>
+    </div>
+
+    <div
+      id="test-sync-section"      class="card hidden"
+    >
+      <div class="status-title">
+        Test the sync connection
+      </div>
+
+      <div class="status-message">
+        Send one harmless test event through the
+        extension, FastAPI, and Supabase.
+      </div>
+
+      <button
+        id="send-test-event"
+        class="test-button"
+        type="button"
+      >
+        Send test event
+      </button>
+
+      <div
+        id="test-message"
+        class="test-message"
+      ></div>
+    </div>
+
+    <button
+      id="check-connection"
+      class="secondary-button hidden"
+      type="button"
+    >
+      Check connection
+    </button>
+
+    <button
+      id="open-tradovate"
+      class="secondary-button"
+      type="button"
+    >
+      Open Tradovate
+    </button>
+
+    <button
+      id="open-ninjatrader"
+      class="secondary-button"
+      type="button"
+    >
+      Open NinjaTrader Web
+    </button>
+
+    <div
+      id="debug-info"
+      class="debug-info"
+    >
+      Checking extension state...
+    </div>
+
+    <p class="privacy">
+      TradeCoach does not read or store your broker passwords.
+    </p>
+    <script src="popup.js"></script>
+  </body>
+</html>
