@@ -43,6 +43,11 @@ import {
   normalizeOpenAiError,
   sanitizeAssistantText,
 } from "@/lib/openai-errors";
+import {
+  getTradeDisplayPnl,
+  getTradeOutcomeStats,
+  isAnalyzableTrade,
+} from "@/lib/trade-pnl";
 import { createBrowserClient } from "@supabase/ssr";
 
 type BrokerCompletedTrade = {
