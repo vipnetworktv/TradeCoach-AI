@@ -51,3 +51,27 @@ export const EXTENSION_SETUP_STEPS: ExtensionInstallStep[] = [
 
 export const EXTENSION_INSTALL_DISMISS_KEY =
   "tradecoach-extension-install-dismissed";
+
+export function getExtensionOnboardingDismissKey(userId: string) {
+  return `tradecoach-extension-onboarding-seen-${userId}`;
+}
+
+export function hasSeenExtensionOnboarding(userId: string) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return (
+    localStorage.getItem(getExtensionOnboardingDismissKey(userId)) === "1" ||
+    sessionStorage.getItem(EXTENSION_INSTALL_DISMISS_KEY) === "1"
+  );
+}
+
+export function markExtensionOnboardingSeen(userId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.setItem(getExtensionOnboardingDismissKey(userId), "1");
+  sessionStorage.setItem(EXTENSION_INSTALL_DISMISS_KEY, "1");
+}

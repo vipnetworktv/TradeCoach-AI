@@ -135,7 +135,7 @@ export default async function ConnectBrokerPage({
 
           <div className="my-8 h-px bg-white/10" />
 
-          <ExtensionPairingPanel compact autoOpenInstallGuide />
+          <ExtensionPairingPanel compact autoOpenInstallGuide userId={user.id} />
 
           <div className="my-8 h-px bg-white/10" />
 

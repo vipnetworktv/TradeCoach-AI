@@ -7,6 +7,8 @@ import {
   EXTENSION_DOWNLOAD_URL,
   EXTENSION_INSTALL_DISMISS_KEY,
   EXTENSION_STORE_URL,
+  hasSeenExtensionOnboarding,
+  markExtensionOnboardingSeen,
 } from "@/lib/extension-install";
 
 type SyncDevice = {
@@ -58,9 +60,11 @@ function formatCountdown(seconds: number) {
 export default function ExtensionPairingPanel({
   compact = false,
   autoOpenInstallGuide = false,
+  userId,
 }: {
   compact?: boolean;
   autoOpenInstallGuide?: boolean;
+  userId?: string;
 }) {
   const [devices, setDevices] = useState<SyncDevice[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(true);
@@ -117,12 +121,16 @@ export default function ExtensionPairingPanel({
       return;
     }
 
+    if (userId && hasSeenExtensionOnboarding(userId)) {
+      return;
+    }
+
     if (sessionStorage.getItem(EXTENSION_INSTALL_DISMISS_KEY) === "1") {
       return;
     }
 
     setShowInstallGuide(true);
-  }, [autoOpenInstallGuide, devices.length, loadingDevices]);
+  }, [autoOpenInstallGuide, devices.length, loadingDevices, userId]);
 
   useEffect(() => {
     if (!expiresAt) {
@@ -235,7 +243,11 @@ export default function ExtensionPairingPanel({
   }
 
   function closeInstallGuide() {
-    sessionStorage.setItem(EXTENSION_INSTALL_DISMISS_KEY, "1");
+    if (userId) {
+      markExtensionOnboardingSeen(userId);
+    } else {
+      sessionStorage.setItem(EXTENSION_INSTALL_DISMISS_KEY, "1");
+    }
     setShowInstallGuide(false);
   }
 

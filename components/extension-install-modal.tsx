@@ -12,12 +12,14 @@ type ExtensionInstallModalProps = {
   open: boolean;
   onClose: () => void;
   onStartPairing?: () => void;
+  welcome?: boolean;
 };
 
 export default function ExtensionInstallModal({
   open,
   onClose,
   onStartPairing,
+  welcome = false,
 }: ExtensionInstallModalProps) {
   const [activeStep, setActiveStep] = useState(0);
 
@@ -61,17 +63,18 @@ export default function ExtensionInstallModal({
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
-                Setup guide
+                {welcome ? "Welcome to TradeCoach" : "Setup guide"}
               </p>
               <h2
                 id="extension-install-title"
                 className="mt-2 text-2xl font-bold text-white sm:text-3xl"
               >
-                Install TradeCoach Sync
+                {welcome ? "Install the Chrome extension" : "Install TradeCoach Sync"}
               </h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">
-                Download the Chrome extension, load it in your browser, then pair
-                it with your TradeCoach account to sync live trades.
+                {welcome
+                  ? "You're almost set up. Install TradeCoach Sync in Chrome or Edge to automatically import trades from Tradovate and NinjaTrader Web."
+                  : "Download the Chrome extension, load it in your browser, then pair it with your TradeCoach account to sync live trades."}
               </p>
             </div>
 

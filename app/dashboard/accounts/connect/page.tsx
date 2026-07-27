@@ -39,7 +39,7 @@ export default async function ConnectBrokerPage() {
         </p>
       </section>
 
-      <ExtensionPairingPanel compact autoOpenInstallGuide />
+      <ExtensionPairingPanel compact autoOpenInstallGuide userId={user.id} />
 
       <ConnectBrokerGrid />
     </div>

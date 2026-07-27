@@ -4,7 +4,9 @@ import type { ReactNode } from "react";
 
 import CoachAiQuickChat from "@/components/coach-ai-quick-chat";
 import DailyLossLimitMonitor from "@/components/daily-loss-limit-monitor";
-import DashboardNav from "@/components/dashboard-nav";import LogoutButton from "./logout-button";
+import DashboardNav from "@/components/dashboard-nav";
+import ExtensionInstallOnboarding from "@/components/extension-install-onboarding";
+import LogoutButton from "./logout-button";
 import { createClient } from "@/lib/supabase/server";
 import {
   formatShortDate,
@@ -79,6 +81,7 @@ export default async function DashboardLayout({
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
+      <ExtensionInstallOnboarding userId={user.id} />
       <div className="flex min-h-screen">
         <aside className="hidden w-72 shrink-0 border-r border-slate-800 bg-slate-950 lg:flex lg:flex-col">
           <div className="border-b border-slate-800 px-8 py-6">
