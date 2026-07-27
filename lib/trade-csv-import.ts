@@ -1517,6 +1517,12 @@ export function csvTradeToInsertRow(
     ),
   );
   const pointValue = getFuturesPointValue(trade.symbol);
+  const buyFillExternalId =
+    trade.buy_fill_external_id?.trim() ||
+    `csv-buy:${trade.broker_pair_id}`;
+  const sellFillExternalId =
+    trade.sell_fill_external_id?.trim() ||
+    `csv-sell:${trade.broker_pair_id}`;
 
   return {
     user_id: userId,
@@ -1539,8 +1545,8 @@ export function csvTradeToInsertRow(
     net_pnl: trade.net_pnl,
     account_external_id:
       trade.account_external_id ?? trade.account_name ?? null,
-    buy_fill_external_id: trade.buy_fill_external_id,
-    sell_fill_external_id: trade.sell_fill_external_id,
+    buy_fill_external_id: buyFillExternalId,
+    sell_fill_external_id: sellFillExternalId,
     source: "csv_import",
     status: "processed",
     processing_error: null,
