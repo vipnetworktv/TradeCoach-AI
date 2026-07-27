@@ -1537,8 +1537,8 @@ export function csvTradeToInsertRow(
     gross_pnl: trade.net_pnl,
     fees: trade.fees ?? 0,
     net_pnl: trade.net_pnl,
-    account_external_id: trade.account_external_id,
-    account_name: trade.account_name,
+    account_external_id:
+      trade.account_external_id ?? trade.account_name ?? null,
     buy_fill_external_id: trade.buy_fill_external_id,
     sell_fill_external_id: trade.sell_fill_external_id,
     source: "csv_import",
@@ -1549,6 +1549,7 @@ export function csvTradeToInsertRow(
     raw_payload: {
       import_source: "csv",
       imported_at: now,
+      account_label: trade.account_name ?? trade.account_external_id ?? null,
     },
   };
 }
