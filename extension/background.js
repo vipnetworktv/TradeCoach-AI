@@ -1,8 +1,7 @@
-const API_URL =
-  "http://localhost:8000";
+importScripts("config.js");
 
-const APP_URL =
-  "http://localhost:3000";
+const API_URL = TRADECOACH_CONFIG.API_URL;
+const APP_URL = TRADECOACH_CONFIG.APP_URL;
 
 const FLUSH_ALARM_NAME =
   "tradecoach-flush-events";
@@ -1170,6 +1169,26 @@ async function injectBrokerScripts(tabId) {
   }
 }
 
+function getTradeCoachAppHostnames() {
+  const hosts = new Set(["localhost", "127.0.0.1"]);
+
+  try {
+    hosts.add(
+      new URL(APP_URL).hostname.toLowerCase(),
+    );
+  } catch {
+    // Ignore invalid APP_URL.
+  }
+
+  for (const host of TRADECOACH_CONFIG.APP_HOSTS || []) {
+    if (host) {
+      hosts.add(String(host).toLowerCase());
+    }
+  }
+
+  return hosts;
+}
+
 function isTradeCoachAppUrl(pageUrl) {
   if (!pageUrl) {
     return false;
@@ -1180,8 +1199,7 @@ function isTradeCoachAppUrl(pageUrl) {
     const host = url.hostname.toLowerCase();
 
     return (
-      host === "localhost" ||
-      host === "127.0.0.1" ||
+      getTradeCoachAppHostnames().has(host) ||
       host.endsWith(".localhost")
     );
   } catch {

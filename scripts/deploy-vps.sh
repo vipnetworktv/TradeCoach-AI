@@ -29,6 +29,12 @@ if [ ! -f .env.local ]; then
   exit 1
 fi
 
+NESTED_CLONE="$APP_DIR/tradecoach"
+if [ -f "$NESTED_CLONE/package.json" ] && [ "$NESTED_CLONE" != "$APP_DIR" ]; then
+  echo "==> Removing duplicate nested clone: $NESTED_CLONE"
+  rm -rf "$NESTED_CLONE"
+fi
+
 echo "==> Installing dependencies"
 if [ -f package-lock.json ]; then
   npm install

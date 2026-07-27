@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import ExtensionPairingPanel from "@/components/extension-pairing-panel";
 import TradeCoachSyncPairing from "@/components/tradecoach-sync-pairing";
 import { getBrokerConnectInfo } from "@/lib/brokers";
 import { createClient } from "@/lib/supabase/server";
@@ -131,6 +132,10 @@ export default async function ConnectBrokerPage({
               </p>
             </div>
           </div>
+
+          <div className="my-8 h-px bg-white/10" />
+
+          <ExtensionPairingPanel compact />
 
           <div className="my-8 h-px bg-white/10" />
 

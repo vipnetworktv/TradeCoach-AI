@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import ConnectBrokerGrid from "@/components/connect-broker-grid";
+import ExtensionPairingPanel from "@/components/extension-pairing-panel";
 import { BROKER_CONNECT_OPTIONS } from "@/lib/brokers";
 import { createClient } from "@/lib/supabase/server";
 export default async function ConnectBrokerPage() {
@@ -37,6 +38,9 @@ export default async function ConnectBrokerPage() {
           sync into the same dashboard, reports, and AI coaching.
         </p>
       </section>
+
+      <ExtensionPairingPanel compact />
+
       <ConnectBrokerGrid />
     </div>
   );

@@ -1,4 +1,5 @@
 import ActiveSessionPanel from "@/components/active-session-panel";
+import ExtensionPairingPanel from "@/components/extension-pairing-panel";
 import NotificationSettingsPanel from "@/components/notification-settings";
 import PasswordSettingsPanel from "@/components/password-settings-panel";
 import ProfileSettingsPanel from "@/components/profile-settings-panel";
@@ -31,6 +32,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-8">
+          <ExtensionPairingPanel />
           <PasswordSettingsPanel />
           <TwoFactorSettingsPanel />
           <ActiveSessionPanel />
