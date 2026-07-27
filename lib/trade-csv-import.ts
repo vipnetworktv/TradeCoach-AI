@@ -94,10 +94,15 @@ const HEADER_ALIASES: Record<string, string> = {
   symbol: "symbol",
   ticker: "symbol",
   contract: "symbol",
+  instrument: "symbol",
+  "contract name": "symbol",
   product: "product",
   direction: "direction",
   side: "direction",
+  action: "direction",
   "b/s": "direction",
+  "buy/sell": "direction",
+  "buy sell": "direction",
   bs: "direction",
   quantity: "quantity",
   qty: "quantity",
@@ -137,16 +142,33 @@ const HEADER_ALIASES: Record<string, string> = {
   "net pnl": "net_pnl",
   "realized p/l": "net_pnl",
   "realized pnl": "net_pnl",
+  "profit/loss": "net_pnl",
+  "profit loss": "net_pnl",
+  "closed p/l": "net_pnl",
+  "closed pnl": "net_pnl",
   account: "account",
+  "account name": "account",
+  "account id": "account",
+  accountid: "account",
   broker: "broker",
   orderid: "broker_pair_id",
   "order id": "broker_pair_id",
+  "fill id": "broker_pair_id",
+  "position id": "broker_pair_id",
+  "trade id": "broker_pair_id",
   "broker pair id": "broker_pair_id",
   "pair id": "broker_pair_id",
   "buy fill id": "buy_fill_external_id",
   "sell fill id": "sell_fill_external_id",
   "fill time": "date",
   timestamp: "date",
+  tradetime: "date",
+  "trade time": "date",
+  "trade date": "date",
+  "close time": "exit_at",
+  "open time": "entry_at",
+  "opened at": "entry_at",
+  "closed at": "exit_at",
   fees: "fees",
   commission: "fees",
   status: "status",
@@ -185,7 +207,174 @@ function normalizeHeader(value: string) {
 }
 
 function stripBom(text: string) {
-  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  if (text.charCodeAt(0) === 0xfeff) {
+    return text.slice(1);
+  }
+
+  return text.replace(/^\uFEFF/, "");
+}
+
+function detectDelimiter(line: string): "," | "\t" | ";" {
+  const tabs = (line.match(/\t/g) || []).length;
+  const commas = (line.match(/,/g) || []).length;
+  const semicolons = (line.match(/;/g) || []).length;
+
+  if (tabs > commas && tabs >= semicolons && tabs > 0) {
+    return "\t";
+  }
+
+  if (semicolons > commas && semicolons > 0) {
+    return ";";
+  }
+
+  return ",";
+}
+
+function cleanCell(value: string) {
+  return value.trim().replace(/^"|"$/g, "").replace(/""/g, '"');
+}
+
+function parseSimpleDelimited(text: string, delimiter: "\t" | ";") {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.split(delimiter).map(cleanCell));
+}
+
+function parseCommaDelimited(text: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentValue = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const nextChar = text[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        currentValue += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && char === ",") {
+      currentRow.push(currentValue);
+      currentValue = "";
+      continue;
+    }
+
+    if (!inQuotes && (char === "\n" || char === "\r")) {
+      if (char === "\r" && nextChar === "\n") {
+        index += 1;
+      }
+
+      currentRow.push(currentValue);
+      currentValue = "";
+
+      if (currentRow.some((cell) => cell.trim())) {
+        rows.push(currentRow.map(cleanCell));
+      }
+
+      currentRow = [];
+      continue;
+    }
+
+    currentValue += char;
+  }
+
+  if (currentValue.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentValue);
+
+    if (currentRow.some((cell) => cell.trim())) {
+      rows.push(currentRow.map(cleanCell));
+    }
+  }
+
+  return rows;
+}
+
+function expandPackedRows(rows: string[][]): string[][] {
+  return rows.map((row) => {
+    if (row.length !== 1) {
+      return row;
+    }
+
+    const value = row[0];
+
+    if (value.includes("\t")) {
+      return value.split("\t").map(cleanCell);
+    }
+
+    if (value.includes(";")) {
+      return value.split(";").map(cleanCell);
+    }
+
+    return row;
+  });
+}
+
+function scoreHeaderRow(cells: string[]) {
+  let score = 0;
+
+  for (const cell of cells) {
+    const normalized = normalizeHeader(cell);
+    const canonical = HEADER_ALIASES[normalized];
+
+    if (canonical) {
+      score += 2;
+    }
+
+    if (
+      [
+        "contract",
+        "symbol",
+        "b/s",
+        "orderid",
+        "avgprice",
+        "filledqty",
+        "status",
+        "timestamp",
+        "side",
+        "pnl",
+        "product",
+      ].includes(normalized)
+    ) {
+      score += 1;
+    }
+  }
+
+  return score;
+}
+
+function findHeaderRowIndex(rows: string[][]) {
+  let bestIndex = 0;
+  let bestScore = 0;
+
+  for (let index = 0; index < Math.min(rows.length, 20); index += 1) {
+    const score = scoreHeaderRow(rows[index]);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  }
+
+  return bestScore >= 3 ? bestIndex : 0;
+}
+
+function formatFoundHeaders(headers: string[]) {
+  const labels = headers.map((header) => header.trim()).filter(Boolean);
+
+  if (labels.length === 0) {
+    return "none detected";
+  }
+
+  return labels.slice(0, 10).join(", ");
 }
 
 function parseNumber(value: string | undefined): number | null {
@@ -382,59 +571,18 @@ export function buildCsvBrokerPairId(
 
 export function parseCsvText(text: string): string[][] {
   const normalizedText = stripBom(text);
-  const rows: string[][] = [];
-  let currentRow: string[] = [];
-  let currentValue = "";
-  let inQuotes = false;
+  const firstLine =
+    normalizedText.split(/\r?\n/).find((line) => line.trim()) || "";
+  const delimiter = detectDelimiter(firstLine);
 
-  for (let index = 0; index < normalizedText.length; index += 1) {
-    const char = normalizedText[index];
-    const nextChar = normalizedText[index + 1];
+  const rows =
+    delimiter === ","
+      ? parseCommaDelimited(normalizedText)
+      : parseSimpleDelimited(normalizedText, delimiter);
 
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        currentValue += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (!inQuotes && char === ",") {
-      currentRow.push(currentValue);
-      currentValue = "";
-      continue;
-    }
-
-    if (!inQuotes && (char === "\n" || char === "\r")) {
-      if (char === "\r" && nextChar === "\n") {
-        index += 1;
-      }
-
-      currentRow.push(currentValue);
-      currentValue = "";
-
-      if (currentRow.some((cell) => cell.trim())) {
-        rows.push(currentRow);
-      }
-
-      currentRow = [];
-      continue;
-    }
-
-    currentValue += char;
-  }
-
-  if (currentValue.length > 0 || currentRow.length > 0) {
-    currentRow.push(currentValue);
-
-    if (currentRow.some((cell) => cell.trim())) {
-      rows.push(currentRow);
-    }
-  }
-
-  return rows;
+  return expandPackedRows(rows).filter((row) =>
+    row.some((cell) => cell.trim()),
+  );
 }
 
 function mapRow(headers: string[], cells: string[]) {
@@ -470,11 +618,22 @@ function detectCsvFormat(headers: string[]): CsvFormat {
     (canonicalSet.has("date") || canonicalSet.has("exit_at")) &&
     hasEntryExit;
 
+  const hasOrderId =
+    headerSet.has("orderid") ||
+    headerSet.has("order id") ||
+    canonicalSet.has("broker_pair_id");
+  const hasAvgPrice = canonicalSet.has("avg_price");
+  const hasQuantity = canonicalSet.has("quantity");
+
   if (hasContractHeader && hasSide && hasPnl && hasEntryExit) {
     return "tradovate_completed";
   }
 
-  if (hasContractHeader && hasSide) {
+  if (
+    hasSide &&
+    (hasContractHeader || hasSymbol) &&
+    (hasOrderId || hasAvgPrice || hasQuantity)
+  ) {
     return "tradovate_fills";
   }
 
@@ -956,17 +1115,19 @@ export function parseCsvTrades(text: string): {
     };
   }
 
-  const [headerRow, ...dataRows] = rows;
+  const headerRowIndex = findHeaderRowIndex(rows);
+  const headerRow = rows[headerRowIndex];
+  const dataRows = rows.slice(headerRowIndex + 1);
   const format = detectCsvFormat(headerRow);
+  const headerLineNumber = headerRowIndex + 1;
 
   if (format === "unknown") {
     return {
       trades: [],
       errors: [
         {
-          row: 1,
-          message:
-            "Unrecognized CSV headers. Use TradeCoach export, Tradovate Orders/Fills, or Tradovate Position History.",
+          row: headerLineNumber,
+          message: `Unrecognized CSV headers (${formatFoundHeaders(headerRow)}). Export from Tradovate Account Reports → Orders, Fills, or Position History.`,
         },
       ],
       format,
@@ -980,7 +1141,7 @@ export function parseCsvTrades(text: string): {
     const fills: TradovateFill[] = [];
 
     dataRows.forEach((cells, index) => {
-      const rowNumber = index + 2;
+      const rowNumber = headerLineNumber + index + 1;
       const mapped = mapRow(headerRow, cells);
       const fill = parseTradovateFillRow(mapped, rowNumber, errors);
 
@@ -1008,7 +1169,7 @@ export function parseCsvTrades(text: string): {
     }
   } else {
     dataRows.forEach((cells, index) => {
-      const rowNumber = index + 2;
+      const rowNumber = headerLineNumber + index + 1;
       const mapped = mapRow(headerRow, cells);
       const trade =
         format === "tradovate_completed"
