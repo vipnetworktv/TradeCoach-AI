@@ -184,7 +184,9 @@ const HEADER_ALIASES: Record<string, string> = {
   status: "status",
 };
 
-const ALLOWED_BROKERS = new Set(["tradovate", "ninjatrader", CSV_IMPORT_BROKER]);
+const ALLOWED_INSERT_BROKERS = new Set(["tradovate", "ninjatrader"]);
+
+const CSV_IMPORT_SOURCE = "reconciliation";
 
 const FUTURES_POINT_VALUES: Record<string, number> = {
   ES: 50,
@@ -516,11 +518,15 @@ function parseBroker(value: string | undefined, defaultBroker = CSV_IMPORT_BROKE
     return CSV_IMPORT_BROKER;
   }
 
-  if (ALLOWED_BROKERS.has(normalized)) {
+  if (ALLOWED_INSERT_BROKERS.has(normalized)) {
     return normalized;
   }
 
   return null;
+}
+
+function resolveInsertBroker(broker: string) {
+  return ALLOWED_INSERT_BROKERS.has(broker) ? broker : "tradovate";
 }
 
 function parseTimestamp(value: string | undefined): string | null {
@@ -1526,7 +1532,7 @@ export function csvTradeToInsertRow(
 
   return {
     user_id: userId,
-    broker: trade.broker,
+    broker: resolveInsertBroker(trade.broker),
     broker_pair_id: trade.broker_pair_id,
     symbol: trade.symbol,
     direction: trade.direction,
@@ -1547,13 +1553,14 @@ export function csvTradeToInsertRow(
       trade.account_external_id ?? trade.account_name ?? null,
     buy_fill_external_id: buyFillExternalId,
     sell_fill_external_id: sellFillExternalId,
-    source: "csv_import",
+    source: CSV_IMPORT_SOURCE,
     status: "processed",
     processing_error: null,
     processed_at: now,
     updated_at: now,
     raw_payload: {
       import_source: "csv",
+      import_broker: trade.broker,
       imported_at: now,
       account_label: trade.account_name ?? trade.account_external_id ?? null,
     },
