@@ -60,6 +60,7 @@ type CsvFormat =
   | "tradovate_completed"
   | "tradovate_fills"
   | "tradovate_performance"
+  | "tradovate_position_history"
   | "unknown";
 
 type TradovateFill = {
@@ -96,6 +97,7 @@ const HEADER_ALIASES: Record<string, string> = {
   contract: "symbol",
   instrument: "symbol",
   "contract name": "symbol",
+  market: "symbol",
   product: "product",
   direction: "direction",
   side: "direction",
@@ -108,6 +110,8 @@ const HEADER_ALIASES: Record<string, string> = {
   qty: "quantity",
   filledqty: "quantity",
   "filled qty": "quantity",
+  bought: "bought_qty",
+  sold: "sold_qty",
   size: "quantity",
   "entry price": "entry_price",
   entry: "entry_price",
@@ -116,6 +120,8 @@ const HEADER_ALIASES: Record<string, string> = {
   "avg. entry price": "entry_price",
   "avg buy price": "entry_price",
   "avg. buy price": "entry_price",
+  "avg buy": "entry_price",
+  "avg. buy": "entry_price",
   "average price in": "entry_price",
   "avg price in": "entry_price",
   "exit price": "exit_price",
@@ -125,6 +131,8 @@ const HEADER_ALIASES: Record<string, string> = {
   "avg. exit price": "exit_price",
   "avg sell price": "exit_price",
   "avg. sell price": "exit_price",
+  "avg sell": "exit_price",
+  "avg. sell": "exit_price",
   "average price out": "exit_price",
   "avg price out": "exit_price",
   avgprice: "avg_price",
@@ -140,6 +148,8 @@ const HEADER_ALIASES: Record<string, string> = {
   profit: "net_pnl",
   "net p/l": "net_pnl",
   "net pnl": "net_pnl",
+  "net pos": "net_pnl",
+  "net position": "net_pnl",
   "realized p/l": "net_pnl",
   "realized pnl": "net_pnl",
   "profit/loss": "net_pnl",
@@ -161,10 +171,10 @@ const HEADER_ALIASES: Record<string, string> = {
   "buy fill id": "buy_fill_external_id",
   "sell fill id": "sell_fill_external_id",
   "fill time": "date",
-  timestamp: "date",
+  timestamp: "exit_at",
   tradetime: "date",
   "trade time": "date",
-  "trade date": "date",
+  "trade date": "entry_at",
   "close time": "exit_at",
   "open time": "entry_at",
   "opened at": "entry_at",
@@ -374,7 +384,78 @@ function formatFoundHeaders(headers: string[]) {
     return "none detected";
   }
 
-  return labels.slice(0, 10).join(", ");
+  return labels.slice(0, 15).join(", ");
+}
+
+function getCellByHeaderNames(
+  headers: string[],
+  cells: string[],
+  names: string[],
+) {
+  for (const name of names) {
+    const target = normalizeHeader(name);
+    const index = headers.findIndex(
+      (header) => normalizeHeader(header) === target,
+    );
+
+    if (index >= 0) {
+      const value = (cells[index] ?? "").trim();
+
+      if (value) {
+        return value;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function inferPositionHistoryDirection(input: {
+  symbol: string;
+  quantity: number;
+  avgBuy: number;
+  avgSell: number;
+  netPnl: number | null;
+}) {
+  const pointValue = getFuturesPointValue(input.symbol);
+  const longPnl =
+    (input.avgSell - input.avgBuy) * input.quantity * pointValue;
+  const shortPnl =
+    (input.avgBuy - input.avgSell) * input.quantity * pointValue;
+
+  if (input.netPnl !== null) {
+    if (Math.abs(longPnl - input.netPnl) <= Math.abs(shortPnl - input.netPnl)) {
+      return {
+        direction: "long" as const,
+        entryPrice: input.avgBuy,
+        exitPrice: input.avgSell,
+        netPnl: input.netPnl,
+      };
+    }
+
+    return {
+      direction: "short" as const,
+      entryPrice: input.avgSell,
+      exitPrice: input.avgBuy,
+      netPnl: input.netPnl,
+    };
+  }
+
+  if (longPnl >= shortPnl) {
+    return {
+      direction: "long" as const,
+      entryPrice: input.avgBuy,
+      exitPrice: input.avgSell,
+      netPnl: longPnl,
+    };
+  }
+
+  return {
+    direction: "short" as const,
+    entryPrice: input.avgSell,
+    exitPrice: input.avgBuy,
+    netPnl: shortPnl,
+  };
 }
 
 function parseNumber(value: string | undefined): number | null {
@@ -624,6 +705,15 @@ function detectCsvFormat(headers: string[]): CsvFormat {
     canonicalSet.has("broker_pair_id");
   const hasAvgPrice = canonicalSet.has("avg_price");
   const hasQuantity = canonicalSet.has("quantity");
+  const hasPositionHistoryShape =
+    headerSet.has("position id") &&
+    (headerSet.has("avg buy") || canonicalSet.has("entry_price")) &&
+    (headerSet.has("avg sell") || canonicalSet.has("exit_price")) &&
+    (headerSet.has("bought") || headerSet.has("sold"));
+
+  if (hasPositionHistoryShape) {
+    return "tradovate_position_history";
+  }
 
   if (hasContractHeader && hasSide && hasPnl && hasEntryExit) {
     return "tradovate_completed";
@@ -854,6 +944,118 @@ function parseTradovateFillRow(
     account: mapped.account || "",
     orderId: mapped.broker_pair_id || `row-${rowNumber}`,
   };
+}
+
+function parseTradovatePositionHistoryRow(
+  headers: string[],
+  cells: string[],
+  rowNumber: number,
+  errors: CsvImportRowError[],
+): ParsedCsvTrade | null {
+  const mapped = mapRow(headers, cells);
+  const contract =
+    getCellByHeaderNames(headers, cells, [
+      "Contract",
+      "Product",
+      "Market",
+      "Symbol",
+    ]) ||
+    mapped.symbol ||
+    mapped.product;
+  const symbol = normalizeTradovateSymbol(contract || "", mapped.product);
+  const bought =
+    parseNumber(mapped.bought_qty) ??
+    parseNumber(getCellByHeaderNames(headers, cells, ["Bought"]));
+  const sold =
+    parseNumber(mapped.sold_qty) ??
+    parseNumber(getCellByHeaderNames(headers, cells, ["Sold"]));
+  const avgBuy =
+    parseNumber(mapped.entry_price) ??
+    parseNumber(getCellByHeaderNames(headers, cells, ["Avg. Buy", "Avg Buy"]));
+  const avgSell =
+    parseNumber(mapped.exit_price) ??
+    parseNumber(getCellByHeaderNames(headers, cells, ["Avg. Sell", "Avg Sell"]));
+  const netPnl =
+    parseNumber(mapped.net_pnl) ??
+    parseNumber(getCellByHeaderNames(headers, cells, ["Net Pos", "Net P/L", "P/L"]));
+  const exitAt =
+    parseTimestamp(mapped.exit_at) ??
+    parseTimestamp(getCellByHeaderNames(headers, cells, ["Timestamp"]));
+  const entryAt =
+    parseTimestamp(mapped.entry_at) ??
+    parseTimestamp(getCellByHeaderNames(headers, cells, ["Trade Date"])) ??
+    exitAt;
+  const account =
+    mapped.account ||
+    getCellByHeaderNames(headers, cells, ["Account", "Account Name"]);
+  const positionId =
+    mapped.broker_pair_id ||
+    getCellByHeaderNames(headers, cells, ["Position ID", "Position Id"]);
+
+  if (!symbol) {
+    errors.push({
+      row: rowNumber,
+      message:
+        "Contract/Product/Symbol column is required for Tradovate Position History rows.",
+    });
+    return null;
+  }
+
+  if (avgBuy === null || avgSell === null) {
+    errors.push({
+      row: rowNumber,
+      message: "Avg. Buy and Avg. Sell are required.",
+    });
+    return null;
+  }
+
+  const quantity =
+    bought !== null && sold !== null
+      ? Math.min(bought, sold)
+      : bought ?? sold;
+
+  if (quantity === null || quantity <= 0) {
+    errors.push({
+      row: rowNumber,
+      message: "Bought/Sold quantity must be greater than 0.",
+    });
+    return null;
+  }
+
+  if (!exitAt || !entryAt) {
+    errors.push({
+      row: rowNumber,
+      message: "Timestamp or Trade Date is required.",
+    });
+    return null;
+  }
+
+  const resolved = inferPositionHistoryDirection({
+    symbol,
+    quantity,
+    avgBuy,
+    avgSell,
+    netPnl,
+  });
+
+  return buildParsedTrade({
+    rowNumber,
+    broker: "tradovate",
+    brokerPairId: positionId,
+    symbol,
+    direction: resolved.direction,
+    quantity,
+    entryPrice: resolved.entryPrice,
+    exitPrice: resolved.exitPrice,
+    entryAt,
+    exitAt,
+    netPnl: resolved.netPnl,
+    grossPoints:
+      resolved.direction === "long"
+        ? resolved.exitPrice - resolved.entryPrice
+        : resolved.entryPrice - resolved.exitPrice,
+    account,
+  });
 }
 
 function parseTradovatePerformanceRow(
@@ -1172,11 +1374,18 @@ export function parseCsvTrades(text: string): {
       const rowNumber = headerLineNumber + index + 1;
       const mapped = mapRow(headerRow, cells);
       const trade =
-        format === "tradovate_completed"
-          ? parseTradovateCompletedRow(mapped, rowNumber, errors)
-          : format === "tradovate_performance"
-            ? parseTradovatePerformanceRow(mapped, rowNumber, errors)
-            : parseGenericRow(mapped, rowNumber, errors);
+        format === "tradovate_position_history"
+          ? parseTradovatePositionHistoryRow(
+              headerRow,
+              cells,
+              rowNumber,
+              errors,
+            )
+          : format === "tradovate_completed"
+            ? parseTradovateCompletedRow(mapped, rowNumber, errors)
+            : format === "tradovate_performance"
+              ? parseTradovatePerformanceRow(mapped, rowNumber, errors)
+              : parseGenericRow(mapped, rowNumber, errors);
 
       if (trade) {
         trades.push(trade);

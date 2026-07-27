@@ -113,6 +113,7 @@ export default function TradeCsvImportPanel({
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
             Upload missed trades from a spreadsheet, TradeCoach export, or
             Tradovate Account Reports CSV (Orders, Fills, or Position History).
+            Position History must include a Contract or Product column.
             Duplicate rows are skipped automatically. Re-importing the same
             Broker Pair ID updates the existing row instead of creating a
             duplicate.
