@@ -4,6 +4,7 @@ import {
   NextResponse,
 } from "next/server";
 
+import { normalizeOpenAiError } from "@/lib/openai-errors";
 import { requireActiveSubscription } from "@/lib/require-active-subscription";
 
 export const runtime = "nodejs";
@@ -94,11 +95,7 @@ function serializeTradingContext(
 function getErrorMessage(
   error: unknown,
 ): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Unknown OpenAI error.";
+  return normalizeOpenAiError(error).message;
 }
 
 export async function GET() {
@@ -398,8 +395,7 @@ END TRADECOACH BROKER DATA
       reply,
     });
   } catch (error) {
-    const message =
-      getErrorMessage(error);
+    const normalized = normalizeOpenAiError(error);
 
     console.error(
       "[TradeCoach AI] OpenAI request failed:",
@@ -408,14 +404,11 @@ END TRADECOACH BROKER DATA
 
     return NextResponse.json(
       {
-        error:
-          process.env.NODE_ENV ===
-          "development"
-            ? message
-            : "TradeCoach AI could not answer right now.",
+        error: normalized.message,
+        code: normalized.code,
       },
       {
-        status: 500,
+        status: normalized.status >= 400 ? normalized.status : 500,
       },
     );
   }

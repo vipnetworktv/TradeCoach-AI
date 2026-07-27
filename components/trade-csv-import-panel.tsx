@@ -11,6 +11,7 @@ type ImportResult = {
   skipped_invalid?: number;
   message?: string;
   error?: string;
+  format?: string;
   errors?: Array<{ row: number; message: string }>;
 };
 
@@ -28,12 +29,33 @@ export default function TradeCsvImportPanel({
     setResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      if (file.size === 0) {
+        setResult({
+          error:
+            "The selected file is 0 bytes. Re-export from TradingView and choose Order history or Balance history.",
+        });
+        return;
+      }
+
+      const csvText = await file.text();
+
+      if (!csvText.trim()) {
+        setResult({
+          error:
+            "The selected file has no readable CSV text. Make sure you exported Order history or Balance history from TradingView, not an Excel file.",
+        });
+        return;
+      }
 
       const response = await fetch("/api/trades/import", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          csv: csvText,
+          fileName: file.name,
+        }),
       });
 
       const data = (await response.json()) as ImportResult;
@@ -42,6 +64,7 @@ export default function TradeCsvImportPanel({
         setResult({
           error: data.error || "Could not import trades.",
           errors: data.errors,
+          format: data.format,
         });
         return;
       }
@@ -120,8 +143,12 @@ export default function TradeCsvImportPanel({
           </p>
 
           <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-500">
-            Tradovate tip: open your account menu → Account Reports → Orders or
-            Position History → set your date range → Download Report (CSV).
+            Tradovate: Account Reports → Orders or Position History → Download
+            CSV.
+          </p>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+            TradingView Paper: Paper Trading panel → Export data → Order History
+            (or Balance History) → upload the CSV here.
           </p>
         </div>
 
@@ -139,7 +166,7 @@ export default function TradeCsvImportPanel({
             <input
               ref={inputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,.txt,text/csv,text/plain"
               disabled={importing}
               className="hidden"
               onChange={(event) => {
@@ -159,7 +186,14 @@ export default function TradeCsvImportPanel({
       ) : null}
 
       {result?.error ? (
-        <p className="mt-4 text-sm text-rose-300">{result.error}</p>
+        <p className="mt-4 text-sm text-rose-300">
+          {result.error}
+          {result.format ? (
+            <span className="block mt-1 text-xs text-rose-200/80">
+              Detected format: {result.format}
+            </span>
+          ) : null}
+        </p>
       ) : null}
 
       {result?.errors && result.errors.length > 0 ? (

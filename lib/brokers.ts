@@ -64,6 +64,10 @@ export function formatBrokerRecordName(value: string | null | undefined) {
     return "NinjaTrader Web";
   }
 
+  if (normalized.includes("tradingview") || normalized.includes("paper")) {
+    return "TradingView Paper";
+  }
+
   if (normalized.includes("tradestation")) {
     return "TradeStation";
   }

@@ -11,6 +11,7 @@ import type {
   VoiceActivity,
   VoiceStatus,
 } from "@/lib/ai-coach-voice-types";
+import { normalizeOpenAiError, sanitizeAssistantText } from "@/lib/openai-errors";
 
 type UseAiCoachVoiceSessionOptions = {
   disabled?: boolean;
@@ -309,6 +310,19 @@ export function useAiCoachVoiceSession({
             : "";
 
         if (
+          eventType === "error" ||
+          eventType.endsWith(".failed")
+        ) {
+          const errorPayload =
+            typeof payload.error === "object" && payload.error
+              ? payload.error
+              : payload;
+
+          setErrorMessage(normalizeOpenAiError(errorPayload).message);
+          setActivity("idle");
+        }
+
+        if (
           eventType === "input_audio_buffer.speech_started"
         ) {
           userSpeakingRef.current = true;
@@ -380,7 +394,10 @@ export function useAiCoachVoiceSession({
 
             if (!seenTranscriptsRef.current.has(key)) {
               seenTranscriptsRef.current.add(key);
-              onTranscript?.("assistant", transcript);
+              onTranscript?.(
+                "assistant",
+                sanitizeAssistantText(transcript),
+              );
             }
           }
         }
@@ -437,11 +454,9 @@ export function useAiCoachVoiceSession({
 
         return true;
       } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Could not send your message to voice coach.",
-        );
+      setErrorMessage(
+        normalizeOpenAiError(error).message,
+      );
         setActivity("idle");
         return false;
       }
@@ -564,7 +579,7 @@ export function useAiCoachVoiceSession({
           };
 
           if (data.error) {
-            message = data.error;
+            message = normalizeOpenAiError(data.error).message;
           }
         } catch {
           // Response was not JSON.
@@ -587,9 +602,7 @@ export function useAiCoachVoiceSession({
       setStatus("error");
       setActivity("idle");
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "TradeCoach voice could not start.",
+        normalizeOpenAiError(error).message,
       );
     }
   }, [

@@ -13,6 +13,7 @@ import {
   writeStoredAiCoachVoice,
 } from "@/lib/ai-coach-voices";
 import type { AiCoachAvatarGender } from "@/lib/ai-coach-avatars";
+import { normalizeOpenAiError } from "@/lib/openai-errors";
 
 type AiCoachVoicePickerProps = {
   disabled?: boolean;
@@ -124,7 +125,7 @@ export default function AiCoachVoicePicker({
           };
 
           if (data.error) {
-            message = data.error;
+            message = normalizeOpenAiError(data.error).message;
           }
         } catch {
           // Response was not JSON.

@@ -4,6 +4,7 @@ import {
   csvTradeToInsertRow,
   parseCsvTrades,
   partitionCsvTradesForImport,
+  readCsvUploadText,
   type ExistingTradeFingerprint,
 } from "@/lib/trade-csv-import";
 import { createClient } from "@/lib/supabase/server";
@@ -29,6 +30,8 @@ export async function POST(request: Request) {
   }
 
   let csvText = "";
+  let uploadName = "upload.csv";
+  let uploadSize = 0;
 
   try {
     const contentType = request.headers.get("content-type") || "";
@@ -37,28 +40,56 @@ export async function POST(request: Request) {
       const formData = await request.formData();
       const file = formData.get("file");
 
-      if (!(file instanceof File)) {
+      if (!(file instanceof Blob)) {
         return NextResponse.json(
           { error: "A CSV file is required." },
           { status: 400 },
         );
       }
 
-      csvText = await file.text();
+      uploadName =
+        file instanceof File && file.name.trim()
+          ? file.name.trim()
+          : uploadName;
+      uploadSize = file.size;
+
+      if (uploadSize === 0) {
+        return NextResponse.json(
+          {
+            error:
+              "The uploaded file is 0 bytes. Re-export from TradingView Paper Trading and try again.",
+          },
+          { status: 400 },
+        );
+      }
+
+      csvText = await readCsvUploadText(file);
     } else {
-      const body = (await request.json()) as { csv?: string };
+      const body = (await request.json()) as { csv?: string; fileName?: string };
       csvText = String(body.csv || "");
+      uploadName = String(body.fileName || uploadName);
+      uploadSize = csvText.length;
     }
-  } catch {
+  } catch (error) {
     return NextResponse.json(
-      { error: "Could not read the CSV upload." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Could not read the CSV upload.",
+      },
       { status: 400 },
     );
   }
 
   if (!csvText.trim()) {
     return NextResponse.json(
-      { error: "The CSV file is empty." },
+      {
+        error:
+          uploadSize > 0
+            ? `The CSV file could not be decoded (${uploadName}, ${uploadSize} bytes). Try exporting again from TradingView as Order history or Balance history.`
+            : "The CSV file is empty.",
+      },
       { status: 400 },
     );
   }
@@ -68,13 +99,14 @@ export async function POST(request: Request) {
   if (parsedTrades.length === 0) {
     const detail =
       parseErrors[0]?.message ||
-      "Check that the file is a Tradovate Orders, Fills, or Position History export.";
+      "Check that the file is a Tradovate or TradingView CSV export.";
 
     return NextResponse.json(
       {
-        error: `No valid trades were found in the CSV file. ${detail}`,
+        error: `No valid trades were found in the CSV file (${format}). ${detail}`,
         errors: parseErrors,
         format,
+        row_count: parseErrors.length,
       },
       { status: 400 },
     );

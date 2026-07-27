@@ -40,10 +40,9 @@ import {
   type PerformanceReportCoachContext,
 } from "@/lib/performance-report-article";
 import {
-  getTradeDisplayPnl,
-  getTradeOutcomeStats,
-  isAnalyzableTrade,
-} from "@/lib/trade-pnl";
+  normalizeOpenAiError,
+  sanitizeAssistantText,
+} from "@/lib/openai-errors";
 import { createBrowserClient } from "@supabase/ssr";
 
 type BrokerCompletedTrade = {
@@ -1077,7 +1076,10 @@ export default function AICoachPage() {
           )
           .map((row) => ({
             role: row.role,
-            text: row.content,
+            text:
+              row.role === "assistant"
+                ? sanitizeAssistantText(row.content)
+                : row.content.trim(),
           }));
 
         setConversationId(
@@ -2486,11 +2488,20 @@ export default function AICoachPage() {
 
   const handleVoiceTranscript = useCallback(
     async (role: "user" | "assistant", text: string) => {
+      const sanitizedText =
+        role === "assistant"
+          ? sanitizeAssistantText(text)
+          : text.trim();
+
+      if (!sanitizedText) {
+        return;
+      }
+
       setChatMessages((current) => [
         ...current,
         {
           role,
-          text,
+          text: sanitizedText,
         },
       ]);
 
@@ -2499,7 +2510,7 @@ export default function AICoachPage() {
           chatUserId,
           conversationId,
           role,
-          text,
+          sanitizedText,
         );
       }
 
@@ -3013,7 +3024,7 @@ export default function AICoachPage() {
       }
 
       const assistantReply =
-        data.reply;
+        sanitizeAssistantText(data.reply);
 
       setChatMessages(
         (current) => [
@@ -3041,10 +3052,7 @@ export default function AICoachPage() {
         error,
       );
 
-      const errorText =
-        error instanceof Error
-          ? error.message
-          : "Unknown AI error.";
+      const errorText = normalizeOpenAiError(error).message;
 
       const localFallback =
         answerCoachQuestion(
@@ -3052,8 +3060,8 @@ export default function AICoachPage() {
         );
 
       const fallbackText =
-        `I could not reach the full AI coach: ${errorText}\n\n` +
-        `Here is the local trade-data answer instead:\n\n${localFallback}`;
+        `${errorText}\n\n` +
+        `Here is a local trade-data answer instead:\n\n${localFallback}`;
 
       setChatMessages(
         (current) => [

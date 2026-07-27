@@ -7,6 +7,7 @@ import {
   serializeTradingContext,
 } from "@/lib/ai-coach-instructions";
 import { resolveAiCoachVoice } from "@/lib/ai-coach-voices";
+import { normalizeOpenAiError } from "@/lib/openai-errors";
 import { requireActiveSubscription } from "@/lib/require-active-subscription";
 
 export const runtime = "nodejs";
@@ -112,12 +113,15 @@ export async function POST(request: Request) {
 
   if (!openAiResponse.ok) {
     const errorText = await openAiResponse.text();
+    const normalized = normalizeOpenAiError(
+      errorText,
+      "The OpenAI Realtime API could not start a voice session.",
+    );
 
     return NextResponse.json(
       {
-        error:
-          errorText ||
-          "The OpenAI Realtime API could not start a voice session.",
+        error: normalized.message,
+        code: normalized.code,
       },
       { status: openAiResponse.status },
     );

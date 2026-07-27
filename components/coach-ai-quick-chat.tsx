@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { normalizeOpenAiError, sanitizeAssistantText } from "@/lib/openai-errors";
+
 type ChatMessage = {
   role: "user" | "assistant";
   text: string;
@@ -100,14 +102,10 @@ export default function CoachAiQuickChat({ firstName }: CoachAiQuickChatProps) {
 
       setChatMessages((current) => [
         ...current,
-        { role: "assistant", text: data.reply! },
+        { role: "assistant", text: sanitizeAssistantText(data.reply!) },
       ]);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Unable to reach Coach AI right now.",
-      );
+      setErrorMessage(normalizeOpenAiError(error).message);
     } finally {
       setChatLoading(false);
     }

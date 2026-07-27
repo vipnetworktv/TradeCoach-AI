@@ -4,6 +4,7 @@ import {
   AI_COACH_VOICE_PREVIEW_TEXT,
   resolveAiCoachVoice,
 } from "@/lib/ai-coach-voices";
+import { normalizeOpenAiError } from "@/lib/openai-errors";
 import { requireActiveSubscription } from "@/lib/require-active-subscription";
 
 export const runtime = "nodejs";
@@ -75,12 +76,15 @@ export async function POST(request: Request) {
 
   if (!openAiResponse.ok) {
     const errorText = await openAiResponse.text();
+    const normalized = normalizeOpenAiError(
+      errorText,
+      "The OpenAI speech API could not generate a voice preview.",
+    );
 
     return NextResponse.json(
       {
-        error:
-          errorText ||
-          "The OpenAI speech API could not generate a voice preview.",
+        error: normalized.message,
+        code: normalized.code,
       },
       { status: openAiResponse.status },
     );

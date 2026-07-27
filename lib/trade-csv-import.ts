@@ -61,6 +61,8 @@ type CsvFormat =
   | "tradovate_fills"
   | "tradovate_performance"
   | "tradovate_position_history"
+  | "tradingview_order_history"
+  | "tradingview_balance_history"
   | "unknown";
 
 type TradovateFill = {
@@ -138,6 +140,9 @@ const HEADER_ALIASES: Record<string, string> = {
   avgprice: "avg_price",
   "avg price": "avg_price",
   "avg fill price": "avg_price",
+  "fill price": "avg_price",
+  "limit price": "limit_price",
+  "stop price": "stop_price",
   "average price": "avg_price",
   price: "avg_price",
   "gross points": "gross_points",
@@ -171,20 +176,32 @@ const HEADER_ALIASES: Record<string, string> = {
   "buy fill id": "buy_fill_external_id",
   "sell fill id": "sell_fill_external_id",
   "fill time": "date",
+  "closing time": "date",
+  "close time": "exit_at",
   timestamp: "exit_at",
   tradetime: "date",
   "trade time": "date",
-  "trade date": "entry_at",
-  "close time": "exit_at",
+  "execution time": "date",
+  "exec time": "date",
+  "create time": "entry_at",
+  "placing time": "entry_at",
   "open time": "entry_at",
   "opened at": "entry_at",
   "closed at": "exit_at",
+  profit: "net_pnl",
+  "profit loss": "net_pnl",
+  "trade date": "entry_at",
   fees: "fees",
   commission: "fees",
   status: "status",
+  type: "order_type",
 };
 
-const ALLOWED_INSERT_BROKERS = new Set(["tradovate", "ninjatrader"]);
+const ALLOWED_INSERT_BROKERS = new Set([
+  "tradovate",
+  "ninjatrader",
+  "tradingview",
+]);
 
 const CSV_IMPORT_SOURCE = "reconciliation";
 
@@ -354,6 +371,8 @@ function scoreHeaderRow(cells: string[]) {
         "side",
         "pnl",
         "product",
+        "fill price",
+        "closing time",
       ].includes(normalized)
     ) {
       score += 1;
@@ -579,6 +598,46 @@ function roundPrice(value: number) {
   return value.toFixed(4);
 }
 
+function normalizeTradingViewSymbol(symbol: string) {
+  const trimmed = symbol.trim();
+  const colonIndex = trimmed.lastIndexOf(":");
+
+  if (colonIndex >= 0) {
+    const suffix = trimmed.slice(colonIndex + 1).trim();
+    const normalized = normalizeTradovateSymbol(suffix);
+
+    if (normalized) {
+      return normalized;
+    }
+
+    return trimmed.toUpperCase();
+  }
+
+  return normalizeTradovateSymbol(trimmed) || trimmed.toUpperCase();
+}
+
+function isSkippedTradingViewOrderStatus(value: string | undefined) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  return [
+    "cancelled",
+    "canceled",
+    "rejected",
+    "inactive",
+    "working",
+    "open",
+    "pending",
+    "new",
+    "expired",
+  ].includes(normalized);
+}
+
 function normalizeTradovateSymbol(contract: string, product?: string) {
   const source = (product || contract).trim().toUpperCase();
 
@@ -656,20 +715,104 @@ export function buildCsvBrokerPairId(
   return `csv:${hash}`;
 }
 
+function normalizeCsvText(text: string) {
+  return stripBom(text).replace(/\u0000/g, "").trim();
+}
+
+function isProbablyXlsx(bytes: Uint8Array) {
+  return (
+    bytes.length >= 4 &&
+    bytes[0] === 0x50 &&
+    bytes[1] === 0x4b &&
+    bytes[2] === 0x03 &&
+    bytes[3] === 0x04
+  );
+}
+
+export async function readCsvUploadText(file: Blob): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+
+  if (bytes.length === 0) {
+    return "";
+  }
+
+  if (isProbablyXlsx(bytes)) {
+    throw new Error(
+      "This file looks like Excel (.xlsx), not CSV. In TradingView, use Export data and choose Order history or Balance history to download a .csv file.",
+    );
+  }
+
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder("utf-16le").decode(bytes.subarray(2));
+  }
+
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder("utf-16be").decode(bytes.subarray(2));
+  }
+
+  if (
+    bytes.length >= 4 &&
+    bytes[1] === 0 &&
+    bytes[3] === 0 &&
+    bytes[0] !== 0
+  ) {
+    return new TextDecoder("utf-16le").decode(bytes);
+  }
+
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder("utf-8").decode(bytes.subarray(3));
+  }
+
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
+function parseLineBasedCsv(text: string): string[][] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return [];
+  }
+
+  const delimiter = detectDelimiter(lines[0]);
+
+  if (delimiter === ",") {
+    return parseCommaDelimited(text);
+  }
+
+  return lines.map((line) => line.split(delimiter).map(cleanCell));
+}
+
 export function parseCsvText(text: string): string[][] {
-  const normalizedText = stripBom(text);
+  const normalizedText = normalizeCsvText(text);
+
+  if (!normalizedText) {
+    return [];
+  }
+
   const firstLine =
     normalizedText.split(/\r?\n/).find((line) => line.trim()) || "";
   const delimiter = detectDelimiter(firstLine);
 
-  const rows =
+  let rows =
     delimiter === ","
       ? parseCommaDelimited(normalizedText)
       : parseSimpleDelimited(normalizedText, delimiter);
 
-  return expandPackedRows(rows).filter((row) =>
+  rows = expandPackedRows(rows).filter((row) =>
     row.some((cell) => cell.trim()),
   );
+
+  if (rows.length === 0) {
+    rows = parseLineBasedCsv(normalizedText).filter((row) =>
+      row.some((cell) => cell.trim()),
+    );
+  }
+
+  return rows;
 }
 
 function mapRow(headers: string[], cells: string[]) {
@@ -686,6 +829,20 @@ function mapRow(headers: string[], cells: string[]) {
   });
 
   return mapped;
+}
+
+function hasTradovateFillMarkers(
+  headerSet: Set<string>,
+  hasContractHeader: boolean,
+) {
+  return (
+    hasContractHeader ||
+    headerSet.has("b/s") ||
+    headerSet.has("filledqty") ||
+    headerSet.has("filled qty") ||
+    headerSet.has("avgprice") ||
+    headerSet.has("product")
+  );
 }
 
 function detectCsvFormat(headers: string[]): CsvFormat {
@@ -721,13 +878,41 @@ function detectCsvFormat(headers: string[]): CsvFormat {
     return "tradovate_position_history";
   }
 
+  const hasTradovateMarkers = hasTradovateFillMarkers(
+    headerSet,
+    hasContractHeader,
+  );
+
+  const hasTradingViewOrderShape =
+    hasSymbol &&
+    hasSide &&
+    canonicalSet.has("quantity") &&
+    !hasTradovateMarkers;
+
+  if (hasTradingViewOrderShape) {
+    return "tradingview_order_history";
+  }
+
+  const hasTradingViewBalanceShape =
+    hasSymbol &&
+    hasPnl &&
+    hasEntryExit &&
+    !hasContractHeader &&
+    (headerSet.has("profit") ||
+      headerSet.has("commission") ||
+      headerSet.has("closing time"));
+
+  if (hasTradingViewBalanceShape) {
+    return "tradingview_balance_history";
+  }
+
   if (hasContractHeader && hasSide && hasPnl && hasEntryExit) {
     return "tradovate_completed";
   }
 
   if (
+    hasTradovateMarkers &&
     hasSide &&
-    (hasContractHeader || hasSymbol) &&
     (hasOrderId || hasAvgPrice || hasQuantity)
   ) {
     return "tradovate_fills";
@@ -805,7 +990,11 @@ function buildParsedTrade(input: {
   };
 }
 
-function pairTradovateFills(fills: TradovateFill[]): ParsedCsvTrade[] {
+function pairFillOrders(
+  fills: TradovateFill[],
+  broker: string,
+  normalizeSymbol: (contract: string, product?: string) => string,
+): ParsedCsvTrade[] {
   const byContract = new Map<string, TradovateFill[]>();
 
   for (const fill of fills) {
@@ -836,7 +1025,7 @@ function pairTradovateFills(fills: TradovateFill[]): ParsedCsvTrade[] {
       ) {
         const lot = openLots[0];
         const matchedQty = Math.min(remaining, lot.qty);
-        const symbol = normalizeTradovateSymbol(contract, fill.product);
+        const symbol = normalizeSymbol(contract, fill.product);
         const direction = lot.side;
         const entryPrice = lot.price;
         const exitPrice = fill.price;
@@ -846,12 +1035,13 @@ function pairTradovateFills(fills: TradovateFill[]): ParsedCsvTrade[] {
             : entryPrice - exitPrice;
         const pointValue = getFuturesPointValue(symbol);
         const netPnl = grossPoints * pointValue * matchedQty;
+        const pairPrefix = broker === "tradingview" ? "tv" : broker;
 
         trades.push(
           buildParsedTrade({
             rowNumber: fill.rowNumber,
-            broker: "tradovate",
-            brokerPairId: `tradovate:${lot.orderId}:${fill.orderId}:${matchedQty}`,
+            broker,
+            brokerPairId: `${pairPrefix}:${lot.orderId}:${fill.orderId}:${matchedQty}`,
             symbol,
             direction,
             quantity: matchedQty,
@@ -890,6 +1080,14 @@ function pairTradovateFills(fills: TradovateFill[]): ParsedCsvTrade[] {
   return trades;
 }
 
+function pairTradovateFills(fills: TradovateFill[]): ParsedCsvTrade[] {
+  return pairFillOrders(fills, "tradovate", normalizeTradovateSymbol);
+}
+
+function pairTradingViewFills(fills: TradovateFill[]): ParsedCsvTrade[] {
+  return pairFillOrders(fills, "tradingview", normalizeTradingViewSymbol);
+}
+
 function parseTradovateFillRow(
   mapped: Record<string, string>,
   rowNumber: number,
@@ -908,7 +1106,13 @@ function parseTradovateFillRow(
   const price =
     parseNumber(mapped.avg_price) ??
     parseNumber(mapped.entry_price) ??
-    parseNumber(mapped.exit_price);
+    parseNumber(mapped.exit_price) ??
+    parseNumber(mapped.limit_price);
+
+  if (price === null) {
+    return null;
+  }
+
   const time =
     parseTimestamp(mapped.date) ??
     parseTimestamp(mapped.exit_at) ??
@@ -929,11 +1133,6 @@ function parseTradovateFillRow(
     return null;
   }
 
-  if (price === null) {
-    errors.push({ row: rowNumber, message: "avgPrice or Avg Fill Price is required." });
-    return null;
-  }
-
   if (!time) {
     errors.push({ row: rowNumber, message: "Fill Time or Timestamp is required." });
     return null;
@@ -950,6 +1149,191 @@ function parseTradovateFillRow(
     account: mapped.account || "",
     orderId: mapped.broker_pair_id || `row-${rowNumber}`,
   };
+}
+
+function parseTradingViewFillRow(
+  headers: string[],
+  cells: string[],
+  rowNumber: number,
+  errors: CsvImportRowError[],
+): TradovateFill | null {
+  const mapped = mapRow(headers, cells);
+  const statusValue =
+    mapped.status ||
+    getCellByHeaderNames(headers, cells, ["Status", "State"]);
+
+  if (isSkippedTradingViewOrderStatus(statusValue)) {
+    return null;
+  }
+
+  if (statusValue && !isFilledStatus(statusValue)) {
+    return null;
+  }
+
+  const contract =
+    mapped.symbol?.trim() ||
+    getCellByHeaderNames(headers, cells, [
+      "Symbol",
+      "Ticker",
+      "Instrument",
+    ]);
+  const side = parseTradovateSide(
+    mapped.direction ||
+      getCellByHeaderNames(headers, cells, ["Side", "B/S", "Action"]),
+  );
+  const qty =
+    parseNumber(mapped.quantity) ??
+    parseNumber(
+      getCellByHeaderNames(headers, cells, ["Qty", "Quantity", "Size"]),
+    );
+  const price =
+    parseNumber(mapped.avg_price) ??
+    parseNumber(
+      getCellByHeaderNames(headers, cells, [
+        "Fill Price",
+        "Fill price",
+        "Avg Fill Price",
+        "Price",
+        "Limit price",
+        "Limit Price",
+      ]),
+    );
+  const time =
+    parseTimestamp(mapped.date) ??
+    parseTimestamp(mapped.exit_at) ??
+    parseTimestamp(
+      getCellByHeaderNames(headers, cells, [
+        "Closing Time",
+        "Closing time",
+        "Placing Time",
+        "Placing time",
+        "Time",
+        "Fill Time",
+        "Timestamp",
+        "Date/Time",
+      ]),
+    );
+  const orderId =
+    mapped.broker_pair_id ||
+    getCellByHeaderNames(headers, cells, [
+      "Order ID",
+      "Order Id",
+      "Order id",
+      "Id",
+      "#",
+      "Level ID",
+    ]) ||
+    `tv-row-${rowNumber}`;
+
+  if (!contract) {
+    errors.push({ row: rowNumber, message: "Symbol is required." });
+    return null;
+  }
+
+  if (!side) {
+    errors.push({
+      row: rowNumber,
+      message: "Side must be Buy or Sell.",
+    });
+    return null;
+  }
+
+  if (qty === null || qty <= 0) {
+    return null;
+  }
+
+  if (price === null) {
+    return null;
+  }
+
+  if (!time) {
+    errors.push({
+      row: rowNumber,
+      message: "Closing Time or fill timestamp is required.",
+    });
+    return null;
+  }
+
+  return {
+    rowNumber,
+    contract,
+    product: "",
+    side,
+    qty,
+    price,
+    time,
+    account: mapped.account || "",
+    orderId,
+  };
+}
+
+function parseTradingViewBalanceHistoryRow(
+  mapped: Record<string, string>,
+  rowNumber: number,
+  errors: CsvImportRowError[],
+): ParsedCsvTrade | null {
+  const symbol = normalizeTradingViewSymbol(mapped.symbol || "");
+  const direction = parseDirection(mapped.direction);
+  const quantity = parseNumber(mapped.quantity);
+  const entryPrice = parseNumber(mapped.entry_price);
+  const exitPrice = parseNumber(mapped.exit_price);
+  const netPnl = parseNumber(mapped.net_pnl);
+  const exitAt =
+    parseTimestamp(mapped.exit_at) ?? parseTimestamp(mapped.date);
+  const entryAt =
+    parseTimestamp(mapped.entry_at) ?? exitAt;
+
+  if (!symbol) {
+    errors.push({ row: rowNumber, message: "Symbol is required." });
+    return null;
+  }
+
+  if (!direction) {
+    errors.push({ row: rowNumber, message: "Side must be Long or Short." });
+    return null;
+  }
+
+  if (quantity === null || quantity <= 0) {
+    errors.push({ row: rowNumber, message: "Qty must be greater than 0." });
+    return null;
+  }
+
+  if (entryPrice === null || exitPrice === null) {
+    errors.push({
+      row: rowNumber,
+      message: "Entry and exit prices are required.",
+    });
+    return null;
+  }
+
+  if (!entryAt || !exitAt) {
+    errors.push({ row: rowNumber, message: "Trade time is required." });
+    return null;
+  }
+
+  const grossPoints =
+    direction === "long"
+      ? exitPrice - entryPrice
+      : entryPrice - exitPrice;
+  const resolvedNetPnl =
+    netPnl ??
+    grossPoints * getFuturesPointValue(symbol) * quantity;
+
+  return buildParsedTrade({
+    rowNumber,
+    broker: "tradingview",
+    symbol,
+    direction,
+    quantity,
+    entryPrice,
+    exitPrice,
+    entryAt,
+    exitAt,
+    netPnl: resolvedNetPnl,
+    grossPoints,
+    fees: parseNumber(mapped.fees),
+    account: mapped.account,
+  });
 }
 
 function parseTradovatePositionHistoryRow(
@@ -1316,9 +1700,19 @@ export function parseCsvTrades(text: string): {
   const rows = parseCsvText(text);
 
   if (rows.length === 0) {
+    const charCount = normalizeCsvText(text).length;
+
     return {
       trades: [],
-      errors: [{ row: 0, message: "The CSV file is empty." }],
+      errors: [
+        {
+          row: 0,
+          message:
+            charCount > 0
+              ? `The file had ${charCount} characters but no CSV rows could be parsed. Open it in Notepad and confirm the first line includes headers like Symbol, Side, Qty, and Fill price.`
+              : "The CSV file is empty.",
+        },
+      ],
       format: "unknown",
     };
   }
@@ -1335,7 +1729,7 @@ export function parseCsvTrades(text: string): {
       errors: [
         {
           row: headerLineNumber,
-          message: `Unrecognized CSV headers (${formatFoundHeaders(headerRow)}). Export from Tradovate Account Reports → Orders, Fills, or Position History.`,
+          message: `Unrecognized CSV headers (${formatFoundHeaders(headerRow)}). Export from Tradovate Account Reports, or TradingView Paper Trading → Export data → Order History / Balance History.`,
         },
       ],
       format,
@@ -1345,13 +1739,24 @@ export function parseCsvTrades(text: string): {
   const errors: CsvImportRowError[] = [];
   let trades: ParsedCsvTrade[] = [];
 
-  if (format === "tradovate_fills") {
+  if (format === "tradovate_fills" || format === "tradingview_order_history") {
     const fills: TradovateFill[] = [];
 
     dataRows.forEach((cells, index) => {
       const rowNumber = headerLineNumber + index + 1;
-      const mapped = mapRow(headerRow, cells);
-      const fill = parseTradovateFillRow(mapped, rowNumber, errors);
+      const fill =
+        format === "tradingview_order_history"
+          ? parseTradingViewFillRow(
+              headerRow,
+              cells,
+              rowNumber,
+              errors,
+            )
+          : parseTradovateFillRow(
+              mapRow(headerRow, cells),
+              rowNumber,
+              errors,
+            );
 
       if (fill) {
         fills.push(fill);
@@ -1362,17 +1767,24 @@ export function parseCsvTrades(text: string): {
       errors.push({
         row: 0,
         message:
-          "No filled Tradovate rows found. Export Orders or Fills with Status = Filled.",
+          format === "tradingview_order_history"
+            ? "No filled TradingView rows found. Export Paper Trading → Order History with filled orders only."
+            : "No filled Tradovate rows found. Export Orders or Fills with Status = Filled.",
       });
     }
 
-    trades = pairTradovateFills(fills);
+    trades =
+      format === "tradingview_order_history"
+        ? pairTradingViewFills(fills)
+        : pairTradovateFills(fills);
 
     if (fills.length > 0 && trades.length === 0) {
       errors.push({
         row: 0,
         message:
-          "Tradovate fills were found, but none could be paired into completed trades yet. Make sure the export includes both entry and exit fills.",
+          format === "tradingview_order_history"
+            ? "TradingView fills were found, but none could be paired into completed trades yet. Make sure the export includes both entry and exit fills."
+            : "Tradovate fills were found, but none could be paired into completed trades yet. Make sure the export includes both entry and exit fills.",
       });
     }
   } else {
@@ -1391,6 +1803,12 @@ export function parseCsvTrades(text: string): {
             ? parseTradovateCompletedRow(mapped, rowNumber, errors)
             : format === "tradovate_performance"
               ? parseTradovatePerformanceRow(mapped, rowNumber, errors)
+              : format === "tradingview_balance_history"
+                ? parseTradingViewBalanceHistoryRow(
+                    mapped,
+                    rowNumber,
+                    errors,
+                  )
               : parseGenericRow(mapped, rowNumber, errors);
 
       if (trade) {
