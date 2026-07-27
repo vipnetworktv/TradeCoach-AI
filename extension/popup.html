@@ -141,8 +141,7 @@
           rgba(34, 211, 238, 0.1);
       }
 
-      .pairing-message,
-      .test-message {
+      .pairing-message {
         min-height: 18px;
         margin-top: 10px;
 
@@ -152,13 +151,11 @@
         text-align: center;
       }
 
-      .pairing-message.success,
-      .test-message.success {
+      .pairing-message.success {
         color: #6ee7b7;
       }
 
-      .pairing-message.error,
-      .test-message.error {
+      .pairing-message.error {
         color: #fda4af;
       }
 
@@ -202,17 +199,6 @@
 
       .secondary-button:hover:not(:disabled) {
         background: #1e293b;
-      }
-
-      .test-button {
-        margin-top: 14px;
-
-        color: #052e16;
-        background: #34d399;
-      }
-
-      .test-button:hover:not(:disabled) {
-        background: #6ee7b7;
       }
 
       .hidden {
@@ -382,32 +368,6 @@
       >
         Connect this NinjaTrader tab
       </button>
-    </div>
-
-    <div
-      id="test-sync-section"      class="card hidden"
-    >
-      <div class="status-title">
-        Test the sync connection
-      </div>
-
-      <div class="status-message">
-        Send one harmless test event through the
-        extension, FastAPI, and Supabase.
-      </div>
-
-      <button
-        id="send-test-event"
-        class="test-button"
-        type="button"
-      >
-        Send test event
-      </button>
-
-      <div
-        id="test-message"
-        class="test-message"
-      ></div>
     </div>
 
     <button

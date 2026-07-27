@@ -7,9 +7,10 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run package:extension && next build",
     "start": "next start",
     "lint": "eslint",
+    "package:extension": "node scripts/package-extension.mjs",
     "verify:env": "node scripts/verify-env.mjs",
     "verify:env:production": "node scripts/verify-env.mjs --production",
     "paypal:plan": "node scripts/create-paypal-plan.mjs"

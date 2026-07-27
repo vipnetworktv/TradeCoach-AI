@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import ExtensionInstallModal from "@/components/extension-install-modal";
+import {
+  EXTENSION_DOWNLOAD_URL,
+  EXTENSION_INSTALL_DISMISS_KEY,
+  EXTENSION_STORE_URL,
+} from "@/lib/extension-install";
+
 type SyncDevice = {
   id: string;
   device_name: string | null;
@@ -50,8 +57,10 @@ function formatCountdown(seconds: number) {
 
 export default function ExtensionPairingPanel({
   compact = false,
+  autoOpenInstallGuide = false,
 }: {
   compact?: boolean;
+  autoOpenInstallGuide?: boolean;
 }) {
   const [devices, setDevices] = useState<SyncDevice[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(true);
@@ -62,6 +71,7 @@ export default function ExtensionPairingPanel({
   const [secondsRemaining, setSecondsRemaining] = useState(0);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
 
   const loadDevices = useCallback(async () => {
     setLoadingDevices(true);
@@ -97,6 +107,22 @@ export default function ExtensionPairingPanel({
   useEffect(() => {
     void loadDevices();
   }, [loadDevices]);
+
+  useEffect(() => {
+    if (!autoOpenInstallGuide || loadingDevices) {
+      return;
+    }
+
+    if (devices.length > 0) {
+      return;
+    }
+
+    if (sessionStorage.getItem(EXTENSION_INSTALL_DISMISS_KEY) === "1") {
+      return;
+    }
+
+    setShowInstallGuide(true);
+  }, [autoOpenInstallGuide, devices.length, loadingDevices]);
 
   useEffect(() => {
     if (!expiresAt) {
@@ -208,146 +234,197 @@ export default function ExtensionPairingPanel({
     }
   }
 
+  function closeInstallGuide() {
+    sessionStorage.setItem(EXTENSION_INSTALL_DISMISS_KEY, "1");
+    setShowInstallGuide(false);
+  }
+
   const hasPairedDevice = devices.length > 0;
 
   return (
-    <div
-      className={
-        compact
-          ? "rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.05] p-5"
-          : "rounded-3xl border border-slate-800 bg-slate-900/60 p-6"
-      }
-    >
-      <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
-        TradeCoach Sync Extension
-      </p>
+    <>
+      <div
+        className={
+          compact
+            ? "rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.05] p-5"
+            : "rounded-3xl border border-slate-800 bg-slate-900/60 p-6"
+        }
+      >
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
+          TradeCoach Sync Extension
+        </p>
 
-      <h3 className="mt-2 text-2xl font-bold">
-        {compact ? "Step 1 · Pair the extension" : "Pair Chrome Extension"}
-      </h3>
+        <h3 className="mt-2 text-2xl font-bold">
+          {compact ? "Step 1 · Pair the extension" : "Pair Chrome Extension"}
+        </h3>
 
-      <p className="mt-3 text-sm leading-6 text-slate-400">
-        Generate a one-time code here, then enter it in the TradeCoach Sync
-        Chrome extension before connecting a broker tab.
-      </p>
+        <p className="mt-3 text-sm leading-6 text-slate-400">
+          Download and install the Chrome extension, then generate a pairing code
+          and enter it in the extension popup before connecting a broker tab.
+        </p>
 
-      <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-400">
-        <li>Install the TradeCoach Sync extension in Chrome.</li>
-        <li>Generate a pairing code below.</li>
-        <li>Click the extension icon and enter the code.</li>
-        <li>Connect your broker from Accounts.</li>
-      </ol>
-
-      <div className="mt-6 flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={() => void generateCode()}
-          disabled={generating}
-          className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {generating ? "Generating..." : "Generate pairing code"}
-        </button>
-
-        {pairingCode ? (
-          <button
-            type="button"
-            onClick={() => void copyCode()}
-            className="rounded-xl border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:border-cyan-300/40 hover:text-white"
-          >
-            Copy code
-          </button>
-        ) : null}
-      </div>
-
-      {pairingCode ? (
-        <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-slate-950/70 p-5 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Pairing code
-          </p>
-          <p className="mt-3 font-mono text-3xl font-bold tracking-[0.35em] text-cyan-300">
-            {pairingCode}
-          </p>
-          <p className="mt-3 text-xs text-slate-500">
-            Expires in {formatCountdown(secondsRemaining)}
-          </p>
-        </div>
-      ) : null}
-
-      {message ? (
-        <p className="mt-4 text-sm text-emerald-300">{message}</p>
-      ) : null}
-
-      {errorMessage ? (
-        <p className="mt-4 text-sm text-rose-300">{errorMessage}</p>
-      ) : null}
-
-      {!compact ? (
-        <div className="mt-8 border-t border-slate-800 pt-6">
-          <div className="flex items-center justify-between gap-4">
-            <h4 className="text-lg font-semibold text-white">Paired browsers</h4>
-            <button
-              type="button"
-              onClick={() => void loadDevices()}
-              className="text-sm font-medium text-cyan-300 transition hover:text-cyan-200"
-            >
-              Refresh
-            </button>
+        <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+          <div>
+            <p className="text-sm font-semibold text-white">
+              {EXTENSION_STORE_URL
+                ? "Install from Chrome Web Store"
+                : "Download TradeCoach Sync"}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              New here? Open the setup guide for a step-by-step walkthrough.
+            </p>
           </div>
 
-          {loadingDevices ? (
-            <p className="mt-4 text-sm text-slate-500">Loading devices...</p>
-          ) : devices.length === 0 ? (
-            <p className="mt-4 text-sm leading-6 text-slate-500">
-              No paired extensions yet. Generate a code above to connect Chrome.
-            </p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {devices.map((device) => (
-                <div
-                  key={device.id}
-                  className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/50 p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="font-semibold text-white">
-                      {device.device_name || "TradeCoach Sync"}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      {device.browser || "Chrome browser"}
-                      {device.extension_version
-                        ? ` · v${device.extension_version}`
-                        : ""}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Last seen {formatTimestamp(device.last_seen_at)}
-                      {device.last_successful_sync_at
-                        ? ` · Last sync ${formatTimestamp(device.last_successful_sync_at)}`
-                        : ""}
-                    </p>
-                  </div>
+          <div className="mt-3 flex flex-wrap gap-2 sm:mt-0">
+            {EXTENSION_STORE_URL ? (
+              <a
+                href={EXTENSION_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+              >
+                Chrome Web Store
+              </a>
+            ) : (
+              <a
+                href={EXTENSION_DOWNLOAD_URL}
+                download
+                className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+              >
+                Download .zip
+              </a>
+            )}
 
-                  <button
-                    type="button"
-                    onClick={() => void revokeDevice(device.id)}
-                    disabled={revokingId === device.id}
-                    className="rounded-xl border border-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {revokingId === device.id ? "Revoking..." : "Revoke"}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+            <button
+              type="button"
+              onClick={() => setShowInstallGuide(true)}
+              className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-300/40 hover:text-white"
+            >
+              Setup guide
+            </button>
+          </div>
         </div>
-      ) : hasPairedDevice ? (
-        <p className="mt-4 text-sm text-emerald-300">
-          {devices.length} paired browser{devices.length === 1 ? "" : "s"}{" "}
-          connected.
-        </p>
-      ) : (
-        <p className="mt-4 text-sm text-amber-200">
-          No paired extension detected yet.
-        </p>
-      )}
-    </div>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => void generateCode()}
+            disabled={generating}
+            className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {generating ? "Generating..." : "Generate pairing code"}
+          </button>
+
+          {pairingCode ? (
+            <button
+              type="button"
+              onClick={() => void copyCode()}
+              className="rounded-xl border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:border-cyan-300/40 hover:text-white"
+            >
+              Copy code
+            </button>
+          ) : null}
+        </div>
+
+        {pairingCode ? (
+          <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-slate-950/70 p-5 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Pairing code
+            </p>
+            <p className="mt-3 font-mono text-3xl font-bold tracking-[0.35em] text-cyan-300">
+              {pairingCode}
+            </p>
+            <p className="mt-3 text-xs text-slate-500">
+              Expires in {formatCountdown(secondsRemaining)}
+            </p>
+          </div>
+        ) : null}
+
+        {message ? (
+          <p className="mt-4 text-sm text-emerald-300">{message}</p>
+        ) : null}
+
+        {errorMessage ? (
+          <p className="mt-4 text-sm text-rose-300">{errorMessage}</p>
+        ) : null}
+
+        {!compact ? (
+          <div className="mt-8 border-t border-slate-800 pt-6">
+            <div className="flex items-center justify-between gap-4">
+              <h4 className="text-lg font-semibold text-white">
+                Paired browsers
+              </h4>
+              <button
+                type="button"
+                onClick={() => void loadDevices()}
+                className="text-sm font-medium text-cyan-300 transition hover:text-cyan-200"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {loadingDevices ? (
+              <p className="mt-4 text-sm text-slate-500">Loading devices...</p>
+            ) : devices.length === 0 ? (
+              <p className="mt-4 text-sm leading-6 text-slate-500">
+                No paired extensions yet. Download the extension and generate a
+                code above.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {devices.map((device) => (
+                  <div
+                    key={device.id}
+                    className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/50 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-semibold text-white">
+                        {device.device_name || "TradeCoach Sync"}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        {device.browser || "Chrome browser"}
+                        {device.extension_version
+                          ? ` · v${device.extension_version}`
+                          : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Last seen {formatTimestamp(device.last_seen_at)}
+                        {device.last_successful_sync_at
+                          ? ` · Last sync ${formatTimestamp(device.last_successful_sync_at)}`
+                          : ""}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void revokeDevice(device.id)}
+                      disabled={revokingId === device.id}
+                      className="rounded-xl border border-rose-500/20 px-4 py-2 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {revokingId === device.id ? "Revoking..." : "Revoke"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : hasPairedDevice ? (
+          <p className="mt-4 text-sm text-emerald-300">
+            {devices.length} paired browser{devices.length === 1 ? "" : "s"}{" "}
+            connected.
+          </p>
+        ) : (
+          <p className="mt-4 text-sm text-amber-200">
+            No paired extension detected yet.
+          </p>
+        )}
+      </div>
+
+      <ExtensionInstallModal
+        open={showInstallGuide}
+        onClose={closeInstallGuide}
+        onStartPairing={() => void generateCode()}
+      />
+    </>
   );
 }

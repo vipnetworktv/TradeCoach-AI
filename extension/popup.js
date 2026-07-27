@@ -67,21 +67,6 @@ const pairingMessage =
     "pairing-message",
   );
 
-const testSyncSection =
-  document.getElementById(
-    "test-sync-section",
-  );
-
-const sendTestEventButton =
-  document.getElementById(
-    "send-test-event",
-  );
-
-const testMessage =
-  document.getElementById(
-    "test-message",
-  );
-
 const checkConnectionButton =
   document.getElementById(
     "check-connection",
@@ -150,10 +135,6 @@ function showTradeCoachPaired(message) {
   checkConnectionButton.classList.remove(
     "hidden",
   );
-
-  testSyncSection.classList.remove(
-    "hidden",
-  );
 }
 
 function showTradeCoachUnpaired(message) {
@@ -179,10 +160,6 @@ function showTradeCoachUnpaired(message) {
   checkConnectionButton.classList.add(
     "hidden",
   );
-
-  testSyncSection.classList.add(
-    "hidden",
-  );
 }
 
 function showTradeCoachOffline(message) {
@@ -206,10 +183,6 @@ function showTradeCoachOffline(message) {
   );
 
   checkConnectionButton.classList.remove(
-    "hidden",
-  );
-
-  testSyncSection.classList.remove(
     "hidden",
   );
 }
@@ -762,55 +735,6 @@ pairDeviceButton.addEventListener(
       refreshState,
       500,
     );
-  },
-);
-
-sendTestEventButton.addEventListener(
-  "click",
-  async () => {
-    sendTestEventButton.disabled = true;
-
-    sendTestEventButton.textContent =
-      "Sending test event...";
-
-    testMessage.textContent =
-      "Sending through FastAPI to Supabase...";
-
-    testMessage.className =
-      "test-message";
-
-    const response =
-      await sendMessage({
-        type: "SEND_TEST_EVENT",
-      });
-
-    if (!response.success) {
-      testMessage.textContent =
-        response.error ||
-        "The test event could not be sent.";
-
-      testMessage.className =
-        "test-message error";
-
-      sendTestEventButton.disabled = false;
-
-      sendTestEventButton.textContent =
-        "Send test event";
-
-      return;
-    }
-
-    testMessage.textContent =
-      response.message ||
-      "Test event saved successfully.";
-
-    testMessage.className =
-      "test-message success";
-
-    sendTestEventButton.disabled = false;
-
-    sendTestEventButton.textContent =
-      "Send another test event";
   },
 );
 
