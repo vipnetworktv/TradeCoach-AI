@@ -39,7 +39,11 @@ export default function TradeCsvImportPanel({
       const data = (await response.json()) as ImportResult;
 
       if (!response.ok) {
-        throw new Error(data.error || "Could not import trades.");
+        setResult({
+          error: data.error || "Could not import trades.",
+          errors: data.errors,
+        });
+        return;
       }
 
       setResult(data);
@@ -107,10 +111,16 @@ export default function TradeCsvImportPanel({
           </h3>
 
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-            Upload missed trades from a spreadsheet or a TradeCoach CSV export.
-            Duplicate rows are skipped automatically using symbol, entry/exit
-            time, quantity, and prices. Re-importing the same Broker Pair ID
-            updates the existing row instead of creating a duplicate.
+            Upload missed trades from a spreadsheet, TradeCoach export, or
+            Tradovate Account Reports CSV (Orders, Fills, or Position History).
+            Duplicate rows are skipped automatically. Re-importing the same
+            Broker Pair ID updates the existing row instead of creating a
+            duplicate.
+          </p>
+
+          <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-500">
+            Tradovate tip: open your account menu → Account Reports → Orders or
+            Position History → set your date range → Download Report (CSV).
           </p>
         </div>
 

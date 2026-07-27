@@ -63,13 +63,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const { trades: parsedTrades, errors: parseErrors } = parseCsvTrades(csvText);
+  const { trades: parsedTrades, errors: parseErrors, format } = parseCsvTrades(csvText);
 
   if (parsedTrades.length === 0) {
+    const detail =
+      parseErrors[0]?.message ||
+      "Check that the file is a Tradovate Orders, Fills, or Position History export.";
+
     return NextResponse.json(
       {
-        error: "No valid trades were found in the CSV file.",
+        error: `No valid trades were found in the CSV file. ${detail}`,
         errors: parseErrors,
+        format,
       },
       { status: 400 },
     );
@@ -166,6 +171,7 @@ export async function POST(request: Request) {
     skipped_duplicates: skippedDuplicates,
     skipped_invalid: parseErrors.length,
     errors: parseErrors,
+    format,
     message: `Imported ${inserted} trade${inserted === 1 ? "" : "s"}${updates ? `, updated ${updates}` : ""}${skippedDuplicates ? `, skipped ${skippedDuplicates} duplicate${skippedDuplicates === 1 ? "" : "s"}` : ""}.`,
   });
 }

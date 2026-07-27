@@ -55,39 +55,137 @@ export type ExistingTradeFingerprint = {
   exit_price: number | string | null;
 };
 
+type CsvFormat =
+  | "tradecoach"
+  | "tradovate_completed"
+  | "tradovate_fills"
+  | "tradovate_performance"
+  | "unknown";
+
+type TradovateFill = {
+  rowNumber: number;
+  contract: string;
+  product: string;
+  side: "buy" | "sell";
+  qty: number;
+  price: number;
+  time: string;
+  account: string;
+  orderId: string;
+};
+
+type OpenLot = {
+  side: "long" | "short";
+  qty: number;
+  price: number;
+  time: string;
+  orderId: string;
+};
+
 const HEADER_ALIASES: Record<string, string> = {
   date: "date",
+  time: "date",
   "exit date": "exit_at",
+  "exit time": "exit_at",
   "entry date": "entry_at",
+  "entry time": "entry_at",
+  "bought timestamp": "entry_at",
+  "sold timestamp": "exit_at",
   symbol: "symbol",
   ticker: "symbol",
+  contract: "symbol",
+  product: "product",
   direction: "direction",
   side: "direction",
+  "b/s": "direction",
+  bs: "direction",
   quantity: "quantity",
   qty: "quantity",
+  filledqty: "quantity",
+  "filled qty": "quantity",
+  size: "quantity",
   "entry price": "entry_price",
   entry: "entry_price",
+  "avg entry": "entry_price",
+  "avg entry price": "entry_price",
+  "avg. entry price": "entry_price",
+  "avg buy price": "entry_price",
+  "avg. buy price": "entry_price",
+  "average price in": "entry_price",
+  "avg price in": "entry_price",
   "exit price": "exit_price",
   exit: "exit_price",
+  "avg exit": "exit_price",
+  "avg exit price": "exit_price",
+  "avg. exit price": "exit_price",
+  "avg sell price": "exit_price",
+  "avg. sell price": "exit_price",
+  "average price out": "exit_price",
+  "avg price out": "exit_price",
+  avgprice: "avg_price",
+  "avg price": "avg_price",
+  "avg fill price": "avg_price",
+  "average price": "avg_price",
+  price: "avg_price",
   "gross points": "gross_points",
   points: "gross_points",
   "p/l": "net_pnl",
   pnl: "net_pnl",
   pl: "net_pnl",
   profit: "net_pnl",
+  "net p/l": "net_pnl",
+  "net pnl": "net_pnl",
+  "realized p/l": "net_pnl",
+  "realized pnl": "net_pnl",
   account: "account",
   broker: "broker",
+  orderid: "broker_pair_id",
+  "order id": "broker_pair_id",
   "broker pair id": "broker_pair_id",
   "pair id": "broker_pair_id",
   "buy fill id": "buy_fill_external_id",
   "sell fill id": "sell_fill_external_id",
+  "fill time": "date",
+  timestamp: "date",
   fees: "fees",
+  commission: "fees",
+  status: "status",
 };
 
 const ALLOWED_BROKERS = new Set(["tradovate", "ninjatrader", CSV_IMPORT_BROKER]);
 
+const FUTURES_POINT_VALUES: Record<string, number> = {
+  ES: 50,
+  MES: 5,
+  NQ: 20,
+  MNQ: 2,
+  RTY: 50,
+  M2K: 5,
+  YM: 5,
+  MYM: 0.5,
+  CL: 1000,
+  MCL: 100,
+  GC: 100,
+  MGC: 10,
+  SI: 5000,
+  SIL: 1000,
+  NG: 10000,
+  ZB: 1000,
+  ZN: 1000,
+  ZF: 1000,
+};
+
 function normalizeHeader(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
+  return value
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[._]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function stripBom(text: string) {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
 function parseNumber(value: string | undefined): number | null {
@@ -110,24 +208,38 @@ function parseDirection(value: string | undefined): "long" | "short" | null {
     return null;
   }
 
-  if (["long", "l", "buy"].includes(normalized)) {
+  if (["long", "l", "buy", "b", "1", "bot"].includes(normalized)) {
     return "long";
   }
 
-  if (["short", "s", "sell"].includes(normalized)) {
+  if (["short", "s", "sell", "-1", "sld"].includes(normalized)) {
     return "short";
   }
 
   return null;
 }
 
-function parseBroker(value: string | undefined) {
+function parseTradovateSide(value: string | undefined): "buy" | "sell" | null {
+  const direction = parseDirection(value);
+
+  if (direction === "long") {
+    return "buy";
+  }
+
+  if (direction === "short") {
+    return "sell";
+  }
+
+  return null;
+}
+
+function parseBroker(value: string | undefined, defaultBroker = CSV_IMPORT_BROKER) {
   const normalized = String(value || "")
     .trim()
     .toLowerCase();
 
   if (!normalized) {
-    return CSV_IMPORT_BROKER;
+    return defaultBroker;
   }
 
   if (normalized === "manual") {
@@ -147,6 +259,27 @@ function parseTimestamp(value: string | undefined): string | null {
   }
 
   const trimmed = value.trim();
+
+  const usMatch = trimmed.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
+  );
+
+  if (usMatch) {
+    const [, month, day, year, hour = "0", minute = "0", second = "0"] = usMatch;
+    const local = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+    );
+
+    if (!Number.isNaN(local.getTime())) {
+      return local.toISOString();
+    }
+  }
+
   const parsed = new Date(trimmed);
 
   if (Number.isNaN(parsed.getTime())) {
@@ -168,6 +301,51 @@ function normalizeTimestampForFingerprint(value: string) {
 
 function roundPrice(value: number) {
   return value.toFixed(4);
+}
+
+function normalizeTradovateSymbol(contract: string, product?: string) {
+  const source = (product || contract).trim().toUpperCase();
+
+  if (!source) {
+    return "";
+  }
+
+  const monthCodeMatch = source.match(/^([A-Z0-9]+?)[FGHJKMNQUVXZ]\d{1,2}$/);
+  if (monthCodeMatch?.[1]) {
+    return monthCodeMatch[1];
+  }
+
+  const trailingDigits = source.replace(/[A-Z]+\d+$/i, "");
+  return trailingDigits || source;
+}
+
+function getFuturesPointValue(symbol: string) {
+  const normalized = symbol.trim().toUpperCase();
+
+  if (FUTURES_POINT_VALUES[normalized]) {
+    return FUTURES_POINT_VALUES[normalized];
+  }
+
+  for (let length = Math.min(4, normalized.length); length >= 2; length -= 1) {
+    const key = normalized.slice(0, length);
+    if (FUTURES_POINT_VALUES[key]) {
+      return FUTURES_POINT_VALUES[key];
+    }
+  }
+
+  return 1;
+}
+
+function isFilledStatus(value: string | undefined) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) {
+    return true;
+  }
+
+  return ["filled", "complete", "completed", "closed"].includes(normalized);
 }
 
 export function buildTradeFingerprint(input: {
@@ -203,14 +381,15 @@ export function buildCsvBrokerPairId(
 }
 
 export function parseCsvText(text: string): string[][] {
+  const normalizedText = stripBom(text);
   const rows: string[][] = [];
   let currentRow: string[] = [];
   let currentValue = "";
   let inQuotes = false;
 
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const nextChar = text[index + 1];
+  for (let index = 0; index < normalizedText.length; index += 1) {
+    const char = normalizedText[index];
+    const nextChar = normalizedText[index + 1];
 
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
@@ -264,7 +443,7 @@ function mapRow(headers: string[], cells: string[]) {
   headers.forEach((header, index) => {
     const canonical = HEADER_ALIASES[normalizeHeader(header)];
 
-    if (!canonical) {
+    if (!canonical || mapped[canonical]) {
       return;
     }
 
@@ -274,9 +453,498 @@ function mapRow(headers: string[], cells: string[]) {
   return mapped;
 }
 
+function detectCsvFormat(headers: string[]): CsvFormat {
+  const normalized = headers.map((header) => normalizeHeader(header));
+  const canonical = normalized.map((header) => HEADER_ALIASES[header]).filter(Boolean);
+  const canonicalSet = new Set(canonical);
+  const headerSet = new Set(normalized);
+
+  const hasContractHeader = headerSet.has("contract");
+  const hasSymbol = canonicalSet.has("symbol");
+  const hasSide = canonicalSet.has("direction");
+  const hasPnl = canonicalSet.has("net_pnl");
+  const hasEntryExit =
+    canonicalSet.has("entry_price") && canonicalSet.has("exit_price");
+  const hasTradeCoachHeaders =
+    hasSymbol &&
+    (canonicalSet.has("date") || canonicalSet.has("exit_at")) &&
+    hasEntryExit;
+
+  if (hasContractHeader && hasSide && hasPnl && hasEntryExit) {
+    return "tradovate_completed";
+  }
+
+  if (hasContractHeader && hasSide) {
+    return "tradovate_fills";
+  }
+
+  if (
+    hasSymbol &&
+    hasSide &&
+    canonicalSet.has("quantity") &&
+    hasPnl &&
+    canonicalSet.has("avg_price") &&
+    !hasContractHeader
+  ) {
+    return "tradovate_performance";
+  }
+
+  if (hasTradeCoachHeaders) {
+    return "tradecoach";
+  }
+
+  return "unknown";
+}
+
+function buildParsedTrade(input: {
+  rowNumber: number;
+  broker: string;
+  brokerPairId?: string | null;
+  symbol: string;
+  direction: "long" | "short";
+  quantity: number;
+  entryPrice: number;
+  exitPrice: number;
+  entryAt: string;
+  exitAt: string;
+  netPnl: number;
+  grossPoints?: number | null;
+  fees?: number | null;
+  account?: string | null;
+  buyFillId?: string | null;
+  sellFillId?: string | null;
+}): ParsedCsvTrade {
+  const fingerprint = buildTradeFingerprint({
+    symbol: input.symbol,
+    entry_at: input.entryAt,
+    exit_at: input.exitAt,
+    quantity: input.quantity,
+    entry_price: input.entryPrice,
+    exit_price: input.exitPrice,
+  });
+
+  const account = input.account?.trim() || null;
+  const accountLooksExternal = account && /^\d+$/.test(account);
+
+  return {
+    rowNumber: input.rowNumber,
+    broker: input.broker,
+    broker_pair_id: buildCsvBrokerPairId(fingerprint, input.brokerPairId),
+    symbol: input.symbol,
+    direction: input.direction,
+    quantity: input.quantity,
+    entry_price: input.entryPrice,
+    exit_price: input.exitPrice,
+    entry_at: input.entryAt,
+    exit_at: input.exitAt,
+    gross_points:
+      input.grossPoints ??
+      Number((input.exitPrice - input.entryPrice).toFixed(4)),
+    net_pnl: input.netPnl,
+    fees: input.fees ?? null,
+    account_external_id: accountLooksExternal ? account : null,
+    account_name: accountLooksExternal ? null : account,
+    buy_fill_external_id: input.buyFillId || null,
+    sell_fill_external_id: input.sellFillId || null,
+    fingerprint,
+  };
+}
+
+function pairTradovateFills(fills: TradovateFill[]): ParsedCsvTrade[] {
+  const byContract = new Map<string, TradovateFill[]>();
+
+  for (const fill of fills) {
+    const key = fill.contract.trim().toUpperCase();
+    const group = byContract.get(key) ?? [];
+    group.push(fill);
+    byContract.set(key, group);
+  }
+
+  const trades: ParsedCsvTrade[] = [];
+
+  for (const [contract, contractFills] of byContract) {
+    const sorted = [...contractFills].sort(
+      (left, right) =>
+        new Date(left.time).getTime() - new Date(right.time).getTime(),
+    );
+
+    const openLots: OpenLot[] = [];
+
+    for (const fill of sorted) {
+      let remaining = fill.qty;
+      const closingSide = fill.side === "buy" ? "short" : "long";
+
+      while (
+        remaining > 0 &&
+        openLots.length > 0 &&
+        openLots[0].side === closingSide
+      ) {
+        const lot = openLots[0];
+        const matchedQty = Math.min(remaining, lot.qty);
+        const symbol = normalizeTradovateSymbol(contract, fill.product);
+        const direction = lot.side;
+        const entryPrice = lot.price;
+        const exitPrice = fill.price;
+        const grossPoints =
+          direction === "long"
+            ? exitPrice - entryPrice
+            : entryPrice - exitPrice;
+        const pointValue = getFuturesPointValue(symbol);
+        const netPnl = grossPoints * pointValue * matchedQty;
+
+        trades.push(
+          buildParsedTrade({
+            rowNumber: fill.rowNumber,
+            broker: "tradovate",
+            brokerPairId: `tradovate:${lot.orderId}:${fill.orderId}:${matchedQty}`,
+            symbol,
+            direction,
+            quantity: matchedQty,
+            entryPrice,
+            exitPrice,
+            entryAt: lot.time,
+            exitAt: fill.time,
+            netPnl,
+            grossPoints,
+            account: fill.account,
+            buyFillId: direction === "long" ? lot.orderId : fill.orderId,
+            sellFillId: direction === "long" ? fill.orderId : lot.orderId,
+          }),
+        );
+
+        lot.qty -= matchedQty;
+        remaining -= matchedQty;
+
+        if (lot.qty <= 0) {
+          openLots.shift();
+        }
+      }
+
+      if (remaining > 0) {
+        openLots.push({
+          side: fill.side === "buy" ? "long" : "short",
+          qty: remaining,
+          price: fill.price,
+          time: fill.time,
+          orderId: fill.orderId,
+        });
+      }
+    }
+  }
+
+  return trades;
+}
+
+function parseTradovateFillRow(
+  mapped: Record<string, string>,
+  rowNumber: number,
+  errors: CsvImportRowError[],
+): TradovateFill | null {
+  if (!isFilledStatus(mapped.status)) {
+    return null;
+  }
+
+  const contract = mapped.symbol?.trim();
+  const side = parseTradovateSide(mapped.direction);
+  const qty =
+    parseNumber(mapped.quantity) ??
+    parseNumber(mapped.qty) ??
+    parseNumber(mapped.size);
+  const price =
+    parseNumber(mapped.avg_price) ??
+    parseNumber(mapped.entry_price) ??
+    parseNumber(mapped.exit_price);
+  const time =
+    parseTimestamp(mapped.date) ??
+    parseTimestamp(mapped.exit_at) ??
+    parseTimestamp(mapped.entry_at);
+
+  if (!contract) {
+    errors.push({ row: rowNumber, message: "Contract is required." });
+    return null;
+  }
+
+  if (!side) {
+    errors.push({ row: rowNumber, message: "B/S side must be Buy or Sell." });
+    return null;
+  }
+
+  if (qty === null || qty <= 0) {
+    errors.push({ row: rowNumber, message: "Filled quantity must be greater than 0." });
+    return null;
+  }
+
+  if (price === null) {
+    errors.push({ row: rowNumber, message: "avgPrice or Avg Fill Price is required." });
+    return null;
+  }
+
+  if (!time) {
+    errors.push({ row: rowNumber, message: "Fill Time or Timestamp is required." });
+    return null;
+  }
+
+  return {
+    rowNumber,
+    contract,
+    product: mapped.product || "",
+    side,
+    qty,
+    price,
+    time,
+    account: mapped.account || "",
+    orderId: mapped.broker_pair_id || `row-${rowNumber}`,
+  };
+}
+
+function parseTradovatePerformanceRow(
+  mapped: Record<string, string>,
+  rowNumber: number,
+  errors: CsvImportRowError[],
+): ParsedCsvTrade | null {
+  const symbol = normalizeTradovateSymbol(
+    mapped.symbol || "",
+    mapped.product,
+  );
+  const direction = parseDirection(mapped.direction);
+  const quantity = parseNumber(mapped.quantity);
+  const avgPrice = parseNumber(mapped.avg_price);
+  const netPnl = parseNumber(mapped.net_pnl);
+  const exitAt =
+    parseTimestamp(mapped.exit_at) ?? parseTimestamp(mapped.date);
+  const entryAt =
+    parseTimestamp(mapped.entry_at) ?? exitAt;
+
+  if (!symbol) {
+    errors.push({ row: rowNumber, message: "Symbol is required." });
+    return null;
+  }
+
+  if (!direction) {
+    errors.push({ row: rowNumber, message: "Side must be Long or Short." });
+    return null;
+  }
+
+  if (quantity === null || quantity <= 0) {
+    errors.push({ row: rowNumber, message: "Qty must be greater than 0." });
+    return null;
+  }
+
+  if (avgPrice === null) {
+    errors.push({ row: rowNumber, message: "AvgPrice is required." });
+    return null;
+  }
+
+  if (netPnl === null) {
+    errors.push({ row: rowNumber, message: "P&L is required." });
+    return null;
+  }
+
+  if (!exitAt || !entryAt) {
+    errors.push({ row: rowNumber, message: "Time or Date is required." });
+    return null;
+  }
+
+  const pointValue = getFuturesPointValue(symbol);
+  const pointsMoved = netPnl / (quantity * pointValue);
+  const entryPrice =
+    parseNumber(mapped.entry_price) ??
+    (direction === "long" ? avgPrice : avgPrice + pointsMoved);
+  const exitPrice =
+    parseNumber(mapped.exit_price) ??
+    (direction === "long" ? avgPrice + pointsMoved : avgPrice);
+
+  return buildParsedTrade({
+    rowNumber,
+    broker: "tradovate",
+    brokerPairId: mapped.broker_pair_id,
+    symbol,
+    direction,
+    quantity,
+    entryPrice,
+    exitPrice,
+    entryAt,
+    exitAt,
+    netPnl,
+    grossPoints: pointsMoved,
+    account: mapped.account,
+  });
+}
+
+function parseTradovateCompletedRow(
+  mapped: Record<string, string>,
+  rowNumber: number,
+  errors: CsvImportRowError[],
+): ParsedCsvTrade | null {
+  const symbol = normalizeTradovateSymbol(
+    mapped.symbol || "",
+    mapped.product,
+  );
+  const exitAt =
+    parseTimestamp(mapped.exit_at) ?? parseTimestamp(mapped.date);
+  const entryAt =
+    parseTimestamp(mapped.entry_at) ?? exitAt;
+  const quantity = parseNumber(mapped.quantity);
+  const entryPrice = parseNumber(mapped.entry_price);
+  const exitPrice = parseNumber(mapped.exit_price);
+  let netPnl = parseNumber(mapped.net_pnl);
+  const direction = parseDirection(mapped.direction);
+
+  if (!symbol) {
+    errors.push({ row: rowNumber, message: "Contract or Product is required." });
+    return null;
+  }
+
+  if (!exitAt || !entryAt) {
+    errors.push({ row: rowNumber, message: "A valid trade date/time is required." });
+    return null;
+  }
+
+  if (quantity === null || quantity <= 0) {
+    errors.push({ row: rowNumber, message: "Quantity must be greater than 0." });
+    return null;
+  }
+
+  if (entryPrice === null || exitPrice === null) {
+    errors.push({
+      row: rowNumber,
+      message: "Entry and exit prices are required.",
+    });
+    return null;
+  }
+
+  const resolvedDirection =
+    direction ??
+    (entryPrice <= exitPrice ? "long" : "short");
+
+  if (netPnl === null) {
+    const grossPoints =
+      resolvedDirection === "long"
+        ? exitPrice - entryPrice
+        : entryPrice - exitPrice;
+    netPnl = grossPoints * getFuturesPointValue(symbol) * quantity;
+  }
+
+  return buildParsedTrade({
+    rowNumber,
+    broker: "tradovate",
+    brokerPairId: mapped.broker_pair_id,
+    symbol,
+    direction: resolvedDirection,
+    quantity,
+    entryPrice,
+    exitPrice,
+    entryAt,
+    exitAt,
+    netPnl,
+    grossPoints: parseNumber(mapped.gross_points),
+    fees: parseNumber(mapped.fees),
+    account: mapped.account,
+    buyFillId: mapped.buy_fill_external_id,
+    sellFillId: mapped.sell_fill_external_id,
+  });
+}
+
+function parseGenericRow(
+  mapped: Record<string, string>,
+  rowNumber: number,
+  errors: CsvImportRowError[],
+): ParsedCsvTrade | null {
+  const symbol = mapped.symbol?.trim().toUpperCase();
+  const exitAt =
+    parseTimestamp(mapped.exit_at) ?? parseTimestamp(mapped.date);
+  const entryAt =
+    parseTimestamp(mapped.entry_at) ?? exitAt;
+  const quantity = parseNumber(mapped.quantity);
+  const entryPrice = parseNumber(mapped.entry_price);
+  const exitPrice = parseNumber(mapped.exit_price);
+  const netPnl = parseNumber(mapped.net_pnl);
+  const broker = parseBroker(mapped.broker);
+
+  if (!symbol) {
+    errors.push({ row: rowNumber, message: "Symbol is required." });
+    return null;
+  }
+
+  if (!exitAt || !entryAt) {
+    errors.push({ row: rowNumber, message: "A valid Date or Exit Date is required." });
+    return null;
+  }
+
+  if (quantity === null || quantity <= 0) {
+    errors.push({ row: rowNumber, message: "Quantity must be greater than 0." });
+    return null;
+  }
+
+  if (entryPrice === null || exitPrice === null) {
+    errors.push({
+      row: rowNumber,
+      message: "Entry Price and Exit Price are required.",
+    });
+    return null;
+  }
+
+  if (netPnl === null) {
+    errors.push({ row: rowNumber, message: "P/L is required." });
+    return null;
+  }
+
+  if (!broker) {
+    errors.push({
+      row: rowNumber,
+      message: "Broker must be tradovate, ninjatrader, or csv.",
+    });
+    return null;
+  }
+
+  const direction =
+    parseDirection(mapped.direction) ??
+    (entryPrice <= exitPrice ? "long" : "short");
+
+  return buildParsedTrade({
+    rowNumber,
+    broker,
+    brokerPairId: mapped.broker_pair_id,
+    symbol,
+    direction,
+    quantity,
+    entryPrice,
+    exitPrice,
+    entryAt,
+    exitAt,
+    netPnl,
+    grossPoints: parseNumber(mapped.gross_points),
+    fees: parseNumber(mapped.fees),
+    account: mapped.account,
+    buyFillId: mapped.buy_fill_external_id,
+    sellFillId: mapped.sell_fill_external_id,
+  });
+}
+
+function dedupeParsedTrades(trades: ParsedCsvTrade[]) {
+  const unique: ParsedCsvTrade[] = [];
+  const fingerprints = new Set<string>();
+  const pairKeys = new Set<string>();
+
+  for (const trade of trades) {
+    const pairKey = `${trade.broker}|${trade.broker_pair_id}`;
+
+    if (pairKeys.has(pairKey) || fingerprints.has(trade.fingerprint)) {
+      continue;
+    }
+
+    pairKeys.add(pairKey);
+    fingerprints.add(trade.fingerprint);
+    unique.push(trade);
+  }
+
+  return unique;
+}
+
 export function parseCsvTrades(text: string): {
   trades: ParsedCsvTrade[];
   errors: CsvImportRowError[];
+  format: CsvFormat;
 } {
   const rows = parseCsvText(text);
 
@@ -284,139 +952,99 @@ export function parseCsvTrades(text: string): {
     return {
       trades: [],
       errors: [{ row: 0, message: "The CSV file is empty." }],
+      format: "unknown",
     };
   }
 
   const [headerRow, ...dataRows] = rows;
-  const headers = headerRow.map((header) => normalizeHeader(header));
-  const hasKnownHeader = headers.some(
-    (header) => HEADER_ALIASES[header] === "symbol" || HEADER_ALIASES[header] === "date",
-  );
+  const format = detectCsvFormat(headerRow);
 
-  if (!hasKnownHeader) {
+  if (format === "unknown") {
     return {
       trades: [],
       errors: [
         {
           row: 1,
           message:
-            "Unrecognized CSV headers. Use TradeCoach export format or include Symbol and Date columns.",
+            "Unrecognized CSV headers. Use TradeCoach export, Tradovate Orders/Fills, or Tradovate Position History.",
         },
       ],
+      format,
     };
   }
 
-  const trades: ParsedCsvTrade[] = [];
   const errors: CsvImportRowError[] = [];
+  let trades: ParsedCsvTrade[] = [];
+
+  if (format === "tradovate_fills") {
+    const fills: TradovateFill[] = [];
+
+    dataRows.forEach((cells, index) => {
+      const rowNumber = index + 2;
+      const mapped = mapRow(headerRow, cells);
+      const fill = parseTradovateFillRow(mapped, rowNumber, errors);
+
+      if (fill) {
+        fills.push(fill);
+      }
+    });
+
+    if (fills.length === 0 && errors.length === 0) {
+      errors.push({
+        row: 0,
+        message:
+          "No filled Tradovate rows found. Export Orders or Fills with Status = Filled.",
+      });
+    }
+
+    trades = pairTradovateFills(fills);
+
+    if (fills.length > 0 && trades.length === 0) {
+      errors.push({
+        row: 0,
+        message:
+          "Tradovate fills were found, but none could be paired into completed trades yet. Make sure the export includes both entry and exit fills.",
+      });
+    }
+  } else {
+    dataRows.forEach((cells, index) => {
+      const rowNumber = index + 2;
+      const mapped = mapRow(headerRow, cells);
+      const trade =
+        format === "tradovate_completed"
+          ? parseTradovateCompletedRow(mapped, rowNumber, errors)
+          : format === "tradovate_performance"
+            ? parseTradovatePerformanceRow(mapped, rowNumber, errors)
+            : parseGenericRow(mapped, rowNumber, errors);
+
+      if (trade) {
+        trades.push(trade);
+      }
+    });
+  }
+
   const fileFingerprints = new Set<string>();
+  const dedupedTrades: ParsedCsvTrade[] = [];
 
-  dataRows.forEach((cells, index) => {
-    const rowNumber = index + 2;
-    const mapped = mapRow(headerRow, cells);
-
-    const symbol = mapped.symbol?.trim().toUpperCase();
-    const exitAt =
-      parseTimestamp(mapped.exit_at) ?? parseTimestamp(mapped.date);
-    const entryAt =
-      parseTimestamp(mapped.entry_at) ?? exitAt;
-    const quantity = parseNumber(mapped.quantity);
-    const entryPrice = parseNumber(mapped.entry_price);
-    const exitPrice = parseNumber(mapped.exit_price);
-    const netPnl = parseNumber(mapped.net_pnl);
-    const broker = parseBroker(mapped.broker);
-
-    if (!symbol) {
-      errors.push({ row: rowNumber, message: "Symbol is required." });
-      return;
-    }
-
-    if (!exitAt || !entryAt) {
-      errors.push({ row: rowNumber, message: "A valid Date or Exit Date is required." });
-      return;
-    }
-
-    if (quantity === null || quantity <= 0) {
-      errors.push({ row: rowNumber, message: "Quantity must be greater than 0." });
-      return;
-    }
-
-    if (entryPrice === null || exitPrice === null) {
+  for (const trade of dedupeParsedTrades(trades)) {
+    if (fileFingerprints.has(trade.fingerprint)) {
       errors.push({
-        row: rowNumber,
-        message: "Entry Price and Exit Price are required.",
+        row: trade.rowNumber,
+        message:
+          "Duplicate row in this CSV file (same symbol, times, qty, and prices).",
       });
-      return;
+      continue;
     }
 
-    if (netPnl === null) {
-      errors.push({ row: rowNumber, message: "P/L is required." });
-      return;
-    }
+    fileFingerprints.add(trade.fingerprint);
+    dedupedTrades.push(trade);
+  }
 
-    if (!broker) {
-      errors.push({
-        row: rowNumber,
-        message: "Broker must be tradovate, ninjatrader, or csv.",
-      });
-      return;
-    }
-
-    const direction =
-      parseDirection(mapped.direction) ??
-      (entryPrice <= exitPrice ? "long" : "short");
-
-    const fingerprint = buildTradeFingerprint({
-      symbol,
-      entry_at: entryAt,
-      exit_at: exitAt,
-      quantity,
-      entry_price: entryPrice,
-      exit_price: exitPrice,
-    });
-
-    if (fileFingerprints.has(fingerprint)) {
-      errors.push({
-        row: rowNumber,
-        message: "Duplicate row in this CSV file (same symbol, times, qty, and prices).",
-      });
-      return;
-    }
-
-    fileFingerprints.add(fingerprint);
-
-    const grossPoints =
-      parseNumber(mapped.gross_points) ??
-      Number((exitPrice - entryPrice).toFixed(4));
-
-    const account = mapped.account?.trim() || null;
-    const accountLooksExternal = account && /^\d+$/.test(account);
-
-    trades.push({
-      rowNumber,
-      broker,
-      broker_pair_id: buildCsvBrokerPairId(
-        fingerprint,
-        mapped.broker_pair_id,
-      ),
-      symbol,
-      direction,
-      quantity,
-      entry_price: entryPrice,
-      exit_price: exitPrice,
-      entry_at: entryAt,
-      exit_at: exitAt,
-      gross_points: grossPoints,
-      net_pnl: netPnl,
-      fees: parseNumber(mapped.fees),
-      account_external_id: accountLooksExternal ? account : null,
-      account_name: accountLooksExternal ? null : account,
-      buy_fill_external_id: mapped.buy_fill_external_id || null,
-      sell_fill_external_id: mapped.sell_fill_external_id || null,
-      fingerprint,
-    });
-  });
-
-  return { trades, errors };
+  return {
+    trades: dedupedTrades,
+    errors,
+    format,
+  };
 }
 
 export function buildExistingFingerprintSet(
@@ -518,6 +1146,7 @@ export function csvTradeToInsertRow(
         1000,
     ),
   );
+  const pointValue = getFuturesPointValue(trade.symbol);
 
   return {
     user_id: userId,
@@ -534,6 +1163,7 @@ export function csvTradeToInsertRow(
     exit_at: trade.exit_at,
     duration_seconds: durationSeconds,
     gross_points: trade.gross_points,
+    point_value: pointValue,
     gross_pnl: trade.net_pnl,
     fees: trade.fees ?? 0,
     net_pnl: trade.net_pnl,
