@@ -33,7 +33,7 @@ export function getVerifiedTotpFactorId(
         factor.status === "verified" &&
         (factors?.totp ?? []).some((totpFactor) => totpFactor.id === factor.id),
     )?.id ??
-    factors?.totp.find((factor) => factor.status === "verified")?.id ??
+    (factors?.totp ?? []).find((factor) => factor.status === "verified")?.id ??
     null
   );
 }

@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="${APP_DIR:-/var/www/tradecoach/tradecoach}"
+APP_DIR="${APP_DIR:-/var/www/tradecoach}"
 
 echo "==> Using app directory: $APP_DIR"
 cd "$APP_DIR"
+
+PARENT_DIR="$(dirname "$APP_DIR")"
+if [ -f "$PARENT_DIR/package-lock.json" ] && [ ! -f "$PARENT_DIR/package.json" ]; then
+  echo "==> Removing stray parent lockfile: $PARENT_DIR/package-lock.json"
+  rm -f "$PARENT_DIR/package-lock.json"
+fi
 
 if ! command -v node >/dev/null 2>&1; then
   echo "Node.js is not installed."
@@ -34,12 +40,8 @@ echo "==> Building Next.js app"
 npm run build
 
 echo "==> Restarting PM2 process"
-if pm2 describe tradecoach >/dev/null 2>&1; then
-  pm2 restart tradecoach
-else
-  pm2 start npm --name tradecoach -- start
-fi
-
+pm2 delete tradecoach 2>/dev/null || true
+pm2 start ecosystem.config.cjs
 pm2 save
 
 echo "Done. Check: pm2 status && pm2 logs tradecoach --lines 50"

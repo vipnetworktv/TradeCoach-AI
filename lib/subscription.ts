@@ -479,7 +479,7 @@ export async function insertSubscriptionFallback(
   for (const payload of payloads) {
     const { data, error } = await writer
       .from("user_subscriptions")
-      .insert(payload)
+      .insert(payload as Record<string, unknown>)
       .select("*")
       .single();
 

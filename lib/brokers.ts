@@ -133,7 +133,6 @@ export async function upsertBrokerSession(
     .insert({
       user_id: userId,
       broker_name: broker.name,
-      account_name: `${broker.name} Web Session`,
       environment: "live",
       currency: "USD",
       ...values,

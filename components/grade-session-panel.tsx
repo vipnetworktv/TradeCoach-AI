@@ -30,8 +30,6 @@ type GradeSessionTrade = {
   updated_at?: string | null;
 };
 
-type ReportRange = import("@/lib/improvement-plan").ReportRange;
-
 type GradeSessionPanelProps = {
   trades: GradeSessionTrade[];
   loading: boolean;

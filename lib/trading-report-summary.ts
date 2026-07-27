@@ -10,6 +10,7 @@ export type ReportTrade = {
   direction?: string | null;
   net_pnl?: number | string | null;
   gross_pnl?: number | string | null;
+  fees?: number | string | null;
   status?: string | null;
   entry_price?: number | string | null;
   exit_price?: number | string | null;
