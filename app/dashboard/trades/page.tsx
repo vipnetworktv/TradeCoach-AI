@@ -13,11 +13,13 @@ import {
   getTradeOutcomeStats,
   getTradePendingReason,
 } from "@/lib/trade-pnl";
+import TradeCsvImportPanel from "@/components/trade-csv-import-panel";
 import { createBrowserClient } from "@supabase/ssr";
 
 type BrokerCompletedTrade = {
   id?: string | number | null;
 
+  broker?: string | null;
   broker_pair_id?: string | null;
   buy_fill_external_id?: string | null;
   sell_fill_external_id?: string | null;
@@ -799,6 +801,7 @@ export default function TradesPage() {
       "Gross Points",
       "P/L",
       "Account",
+      "Broker",
       "Broker Pair ID",
       "Buy Fill ID",
       "Sell Fill ID",
@@ -822,6 +825,7 @@ export default function TradesPage() {
           getAccountLabel(
             trade,
           ),
+          trade.broker || "csv",
           trade.broker_pair_id,
           trade.buy_fill_external_id,
           trade.sell_fill_external_id,
@@ -897,8 +901,8 @@ export default function TradesPage() {
           </h2>
 
           <p className="mt-2 max-w-2xl text-slate-400">
-            Real completed trades synchronized from
-            Tradovate with entry, exit, and P/L.
+            Completed trades synchronized from your broker, plus any trades you
+            import manually from CSV.
           </p>
         </div>
 
@@ -938,6 +942,14 @@ export default function TradesPage() {
           </p>
         </div>
       ) : null}
+
+      <div className="mt-6">
+        <TradeCsvImportPanel
+          onImported={() => {
+            void loadTrades(true);
+          }}
+        />
+      </div>
 
       {totals.pending > 0 ? (
         <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-5">
@@ -1193,6 +1205,7 @@ export default function TradesPage() {
             </p>
           </div>
 
+          <div className="flex flex-wrap gap-3">
           <button
             type="button"
             onClick={
@@ -1206,6 +1219,7 @@ export default function TradesPage() {
           >
             Export CSV
           </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
