@@ -188,8 +188,6 @@ const HEADER_ALIASES: Record<string, string> = {
   "open time": "entry_at",
   "opened at": "entry_at",
   "closed at": "exit_at",
-  profit: "net_pnl",
-  "profit loss": "net_pnl",
   "trade date": "entry_at",
   fees: "fees",
   commission: "fees",
