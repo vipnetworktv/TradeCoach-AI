@@ -2685,13 +2685,18 @@ async def process_completed_trade_event(
     )
 
     entry_at = parse_datetime(
-        payload.get("entry_at"),
+        first_string(
+            payload.get("entry_at"),
+            payload.get("entryAt"),
+        ),
     )
 
     exit_at = parse_datetime(
-        payload.get("exit_at"),
-        event.occurred_at,
-    )
+        first_string(
+            payload.get("exit_at"),
+            payload.get("exitAt"),
+        ),
+    ) or parse_datetime(event.occurred_at)
 
     if (
         not pair_id
