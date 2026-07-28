@@ -135,6 +135,39 @@ function normalizeKey(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
 
+function isTradingViewManagedBrokerAccount(account: BrokerAccount) {
+  const broker = normalizeKey(account.broker_name);
+  const accountName = normalizeKey(account.account_name || "");
+
+  return (
+    broker.includes("tradingview") ||
+    accountName.includes("tradingview")
+  );
+}
+
+function dedupeBrokerAccounts(accounts: BrokerAccount[]) {
+  const seen = new Map<string, BrokerAccount>();
+
+  for (const account of accounts) {
+    const key = `${normalizeKey(account.broker_name)}::${normalizeKey(
+      account.account_name || "default",
+    )}`;
+    const existing = seen.get(key);
+    const accountSyncedAt = account.last_synced_at || "";
+    const existingSyncedAt = existing?.last_synced_at || "";
+
+    if (!existing || accountSyncedAt > existingSyncedAt) {
+      seen.set(key, account);
+    }
+  }
+
+  return Array.from(seen.values()).sort(
+    (first, second) =>
+      new Date(second.last_synced_at || 0).getTime() -
+      new Date(first.last_synced_at || 0).getTime(),
+  );
+}
+
 function getTradeTimestamp(trade: CompletedTrade) {
   return (
     trade.exit_at ||
@@ -592,7 +625,10 @@ export default async function AccountsPage() {
       .limit(5000),
   ]);
 
-  const accounts = (accountsResult.data ?? []) as BrokerAccount[];
+  const allAccounts = (accountsResult.data ?? []) as BrokerAccount[];
+  const accounts = dedupeBrokerAccounts(
+    allAccounts.filter(isTradingViewManagedBrokerAccount),
+  );
   const completedTrades = (tradesResult.data ?? []) as CompletedTrade[];
   const tradeStats = getTradeOutcomeStats(completedTrades);
 

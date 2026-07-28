@@ -2550,23 +2550,17 @@ async def ensure_tradingview_account_record(
     is_paper: bool,
     connected_broker: str | None,
 ) -> None:
-    broker_name = "TradingView"
+    # Only maintain TradingView paper/session rows here. Prop firm fills
+    # connected through TradingView stay on completed trades, not broker_accounts.
+    if connected_broker and not is_paper:
+        return
 
-    if connected_broker == "tradovate":
-        broker_name = "Tradovate"
-    elif connected_broker == "ninjatrader":
-        broker_name = "NinjaTrader Web"
-    elif connected_broker == "ibkr":
-        broker_name = "Interactive Brokers"
-    elif connected_broker == "tradestation":
-        broker_name = "TradeStation"
-    elif connected_broker:
-        broker_name = connected_broker.replace("-", " ").title()
+    broker_name = "TradingView"
 
     resolved_name = account_name or (
         "TradingView Paper"
         if is_paper
-        else f"{broker_name} (TradingView)"
+        else "TradingView Session"
     )
 
     existing_accounts = await supabase_get(
