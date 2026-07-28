@@ -15,6 +15,7 @@ import {
   getTradeDisplayPnl,
   getTradeOutcomeStats,
 } from "@/lib/trade-pnl";
+import { dedupeTradesBySemanticKey } from "@/lib/trade-dedupe";
 import { filterTradesForTradingProfile } from "@/lib/trading-profiles";
 import { useTradingProfiles } from "@/lib/use-trading-profiles";
 
@@ -437,7 +438,9 @@ export default function DashboardPage() {
             getTimestampValue(firstTrade),
         );
 
-        setTrades(sortedTrades);
+        setTrades(
+          dedupeTradesBySemanticKey(sortedTrades),
+        );
       } catch (error) {
         console.error(
           "[TradeCoach] Dashboard trade load failed:",
