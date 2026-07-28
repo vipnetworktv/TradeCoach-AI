@@ -20,7 +20,10 @@ import {
   getTradePendingReason,
 } from "@/lib/trade-pnl";
 import TradeCsvImportPanel from "@/components/trade-csv-import-panel";
+import TradingProfileSwitcher from "@/components/trading-profile-switcher";
 import { createBrowserClient } from "@supabase/ssr";
+import { filterTradesForTradingProfile } from "@/lib/trading-profiles";
+import { useTradingProfiles } from "@/lib/use-trading-profiles";
 
 type BrokerCompletedTrade = {
   id?: string | number | null;
@@ -472,6 +475,16 @@ export default function TradesPage() {
     "7",
   );
 
+  const {
+    profiles: tradingProfiles,
+    activeProfile,
+    loading: tradingProfilesLoading,
+    actionLoading: tradingProfileActionLoading,
+    error: tradingProfilesError,
+    createProfile,
+    activateProfile,
+  } = useTradingProfiles();
+
   const [
     page,
     setPage,
@@ -653,6 +666,19 @@ export default function TradesPage() {
     statsAccountsReady,
   ]);
 
+  const profileScopedTrades =
+    useMemo(() => {
+      return filterTradesForTradingProfile(
+        trades,
+        activeProfile,
+        tradingProfiles,
+      );
+    }, [
+      trades,
+      activeProfile,
+      tradingProfiles,
+    ]);
+
   const tradesInDateRange =
     useMemo(() => {
       return trades.filter(
@@ -667,6 +693,20 @@ export default function TradesPage() {
       dateRange,
     ]);
 
+  const profileTradesInDateRange =
+    useMemo(() => {
+      return profileScopedTrades.filter(
+        (trade) =>
+          isInsideDateRange(
+            trade,
+            dateRange,
+          ),
+      );
+    }, [
+      profileScopedTrades,
+      dateRange,
+    ]);
+
   const statsTrades =
     useMemo(() => {
       if (
@@ -676,7 +716,7 @@ export default function TradesPage() {
         return [];
       }
 
-      return tradesInDateRange.filter(
+      return profileTradesInDateRange.filter(
         (trade) =>
           statsAccountKeys.has(
             getTradeAccountKey(
@@ -685,7 +725,7 @@ export default function TradesPage() {
           ),
       );
     }, [
-      tradesInDateRange,
+      profileTradesInDateRange,
       statsAccountKeys,
       statsAccountsReady,
     ]);
@@ -1094,7 +1134,19 @@ export default function TradesPage() {
         </div>
       ) : null}
 
-      <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-8">
+        <TradingProfileSwitcher
+          profiles={tradingProfiles}
+          activeProfile={activeProfile}
+          loading={tradingProfilesLoading}
+          actionLoading={tradingProfileActionLoading}
+          error={tradingProfilesError}
+          onCreateProfile={createProfile}
+          onActivateProfile={activateProfile}
+        />
+      </div>
+
+      <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
           <p className="text-sm text-slate-400">
             Total P/L
@@ -1116,6 +1168,7 @@ export default function TradesPage() {
 
           <p className="mt-2 text-sm text-slate-500">
             {dateRangeLabel}
+            {activeProfile ? ` · ${activeProfile.name}` : ""}
           </p>
         </div>
 

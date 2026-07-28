@@ -10,10 +10,13 @@ import {
 
 import { createBrowserClient } from "@supabase/ssr";
 
+import TradingProfileSwitcher from "@/components/trading-profile-switcher";
 import {
   getTradeDisplayPnl,
   getTradeOutcomeStats,
 } from "@/lib/trade-pnl";
+import { filterTradesForTradingProfile } from "@/lib/trading-profiles";
+import { useTradingProfiles } from "@/lib/use-trading-profiles";
 
 type BrokerCompletedTrade = {
   id?: string | number | null;
@@ -369,6 +372,26 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] =
     useState(false);
 
+  const {
+    profiles: tradingProfiles,
+    activeProfile,
+    loading: tradingProfilesLoading,
+    actionLoading: tradingProfileActionLoading,
+    error: tradingProfilesError,
+    createProfile,
+    activateProfile,
+  } = useTradingProfiles();
+
+  const profileScopedTrades = useMemo(
+    () =>
+      filterTradesForTradingProfile(
+        trades,
+        activeProfile,
+        tradingProfiles,
+      ),
+    [trades, activeProfile, tradingProfiles],
+  );
+
   const [errorMessage, setErrorMessage] = useState<
     string | null
   >(null);
@@ -471,7 +494,7 @@ export default function DashboardPage() {
     const weekTrades: BrokerCompletedTrade[] = [];
     const monthTrades: BrokerCompletedTrade[] = [];
 
-    for (const trade of trades) {
+    for (const trade of profileScopedTrades) {
       const timestamp = getTradeTimestamp(trade);
 
       if (!timestamp) {
@@ -508,7 +531,7 @@ export default function DashboardPage() {
       weekTrades,
       monthTrades,
     };
-  }, [trades]);
+  }, [profileScopedTrades]);
 
   const todayNetPnl = useMemo(
     () =>
@@ -683,8 +706,8 @@ export default function DashboardPage() {
           </h1>
 
           <p className="mt-2 text-sm text-slate-400">
-            Real processed trades synchronized from
-            TradingView.
+            Real processed trades synchronized from TradingView
+            {activeProfile ? ` · ${activeProfile.name}` : ""}.
           </p>
         </div>
 
@@ -713,6 +736,18 @@ export default function DashboardPage() {
           </p>
         </div>
       ) : null}
+
+      <div className="mb-6">
+        <TradingProfileSwitcher
+          profiles={tradingProfiles}
+          activeProfile={activeProfile}
+          loading={tradingProfilesLoading}
+          actionLoading={tradingProfileActionLoading}
+          error={tradingProfilesError}
+          onCreateProfile={createProfile}
+          onActivateProfile={activateProfile}
+        />
+      </div>
 
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
