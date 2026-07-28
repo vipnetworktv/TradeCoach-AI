@@ -204,26 +204,6 @@ export function formatConnectedBrokerName(
   }
 }
 
-function extractTradingViewAccountId(
-  accountExternalId: string | null,
-) {
-  if (!accountExternalId) {
-    return null;
-  }
-
-  const match = accountExternalId.match(
-    /^tv:(?:paper|live|market):(.+)$/i,
-  );
-
-  if (!match?.[1]) {
-    return null;
-  }
-
-  const accountId = match[1].trim();
-
-  return accountId || null;
-}
-
 function isGenericTradingViewAccountId(
   accountExternalId: string | null,
 ) {
@@ -244,10 +224,96 @@ function getConnectedBrokerFromTrade(
   const payload = getRawPayload(trade);
   const connectedBroker = payload?.connected_broker;
 
-  return typeof connectedBroker === "string" &&
+  if (
+    typeof connectedBroker === "string" &&
     connectedBroker.trim()
-    ? connectedBroker.trim().toLowerCase()
-    : null;
+  ) {
+    return connectedBroker.trim().toLowerCase();
+  }
+
+  const haystack = [
+    pickString(trade, [
+      "account_name",
+      "broker_account_name",
+      "account_label",
+    ]),
+    typeof payload?.account_name === "string"
+      ? payload.account_name
+      : null,
+    typeof payload?.account_label === "string"
+      ? payload.account_label
+      : null,
+    trade.broker,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (haystack.includes("tradovate")) {
+    return "tradovate";
+  }
+
+  if (haystack.includes("ninja")) {
+    return "ninjatrader";
+  }
+
+  if (
+    haystack.includes("interactive") ||
+    haystack.includes("ibkr") ||
+    haystack.includes("ib gateway")
+  ) {
+    return "ibkr";
+  }
+
+  if (haystack.includes("tradestation")) {
+    return "tradestation";
+  }
+
+  return null;
+}
+
+export function isTradingViewPropFeedTrade(
+  trade: TradeAccountFields,
+): boolean {
+  if (isPaperTradingTrade(trade)) {
+    return false;
+  }
+
+  const connectedBroker = getConnectedBrokerFromTrade(trade);
+
+  if (!connectedBroker) {
+    return false;
+  }
+
+  const broker = String(trade.broker || "")
+    .trim()
+    .toLowerCase();
+  const accountExternalId = pickString(trade, [
+    "account_external_id",
+    "broker_account_external_id",
+  ]);
+  const payload = getRawPayload(trade);
+  const importSource = String(payload?.import_source || "")
+    .trim()
+    .toLowerCase();
+
+  if (
+    broker === TRADINGVIEW_BROKER ||
+    accountExternalId?.startsWith("tv:")
+  ) {
+    return true;
+  }
+
+  return importSource === "extension";
+}
+
+export function isTradeCoachTradingViewFeedTrade(
+  trade: TradeAccountFields,
+): boolean {
+  return (
+    isTradingViewPaperFeedTrade(trade) ||
+    isTradingViewPropFeedTrade(trade)
+  );
 }
 
 export function getTradeAccountKey(trade: TradeAccountFields): string {
@@ -267,13 +333,7 @@ export function getTradeAccountKey(trade: TradeAccountFields): string {
     accountExternalId?.startsWith("tv:")
   ) {
     if (!isPaperTradingTrade(trade) && connectedBroker) {
-      const accountId = extractTradingViewAccountId(
-        accountExternalId,
-      );
-
-      return accountId && accountId !== "default"
-        ? `tv:prop:${connectedBroker}:${accountId}`
-        : `tv:prop:${connectedBroker}`;
+      return `tv:prop:${connectedBroker}`;
     }
 
     return TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID;
@@ -300,31 +360,19 @@ export function getTradeAccountLabelFromKey(
   accountKey: string,
 ) {
   if (accountKey.startsWith("tv:prop:")) {
-    const [, , brokerSlug, accountId] = accountKey.split(":");
+    const brokerSlug = accountKey.slice("tv:prop:".length).split(":")[0];
 
-    if (accountId) {
-      return `${formatConnectedBrokerName(brokerSlug)} (TradingView) · ${accountId}`;
-    }
-
-    return `${formatConnectedBrokerName(brokerSlug)} (TradingView)`;
+    return `${formatConnectedBrokerName(brokerSlug)} · via TradingView`;
   }
 
   if (
     accountKey.startsWith(
       `${TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID}:`,
-    )
-  ) {
-    const accountId = accountKey.slice(
-      TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID.length + 1,
-    );
-
-    return `${TRADINGVIEW_PAPER_ACCOUNT_NAME} · ${accountId}`;
-  }
-
-  if (
+    ) ||
+    accountKey === TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID ||
     isLegacyTradingViewPaperAccountId(accountKey)
   ) {
-    return TRADINGVIEW_PAPER_ACCOUNT_NAME;
+    return TRADINGVIEW_BROKER_NAME;
   }
 
   return accountKey;
@@ -334,7 +382,7 @@ export function getTradeAccountFeedName(
   trade: TradeAccountFields,
 ) {
   if (isPaperTradingTrade(trade)) {
-    return "TradingView Paper";
+    return TRADINGVIEW_BROKER_NAME;
   }
 
   const connectedBroker = getConnectedBrokerFromTrade(trade);
@@ -361,6 +409,13 @@ export function getTradeAccountLabel(trade: TradeAccountFields): string {
   ]);
 
   if (explicitName) {
+    if (
+      isPaperTradingTrade(trade) &&
+      explicitName.toLowerCase().includes("tradingview")
+    ) {
+      return TRADINGVIEW_BROKER_NAME;
+    }
+
     return explicitName;
   }
 
@@ -381,6 +436,7 @@ export type TradeAccountOption = {
   key: string;
   label: string;
   isPaper: boolean;
+  isProp: boolean;
 };
 
 export function buildTradeAccountOptions(
@@ -399,12 +455,21 @@ export function buildTradeAccountOptions(
       key,
       label: getTradeAccountLabel(trade),
       isPaper: isPaperTradingTrade(trade),
+      isProp: isTradingViewPropFeedTrade(trade),
     });
   }
 
-  return Array.from(accountMap.values()).sort((first, second) =>
-    first.label.localeCompare(second.label),
-  );
+  return Array.from(accountMap.values()).sort((first, second) => {
+    if (first.isPaper !== second.isPaper) {
+      return first.isPaper ? -1 : 1;
+    }
+
+    if (first.isProp !== second.isProp) {
+      return first.isProp ? -1 : 1;
+    }
+
+    return first.label.localeCompare(second.label);
+  });
 }
 
 export function applyPaperTradingAccountDefaults<

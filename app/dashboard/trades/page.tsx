@@ -12,6 +12,8 @@ import {
   buildTradeAccountOptions,
   getTradeAccountKey,
   getTradeAccountLabel,
+  isPaperTradingTrade,
+  isTradingViewPropFeedTrade,
   STATS_ACCOUNT_FILTER_STORAGE_KEY,
 } from "@/lib/trade-accounts";
 import {
@@ -988,6 +990,41 @@ export default function TradesPage() {
       dateRange,
     );
 
+  function renderAccountBadge(trade: BrokerCompletedTrade) {
+    const isPaper = isPaperTradingTrade(trade);
+    const isProp = isTradingViewPropFeedTrade(trade);
+
+    return (
+      <span className="inline-flex flex-wrap items-center gap-2">
+        <span className="whitespace-nowrap text-sm text-slate-200">
+          {getTradeAccountLabel(trade)}
+        </span>
+
+        {isPaper ? (
+          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+            Paper
+          </span>
+        ) : null}
+
+        {isProp ? (
+          <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+            Prop
+          </span>
+        ) : null}
+      </span>
+    );
+  }
+
+  const paperAccountOptions = accountOptions.filter(
+    (account) => account.isPaper,
+  );
+  const propAccountOptions = accountOptions.filter(
+    (account) => account.isProp,
+  );
+  const otherAccountOptions = accountOptions.filter(
+    (account) => !account.isPaper && !account.isProp,
+  );
+
   return (
     <>
       <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -1181,43 +1218,115 @@ export default function TradesPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {accountOptions.map((account) => {
-              const checked = statsAccountKeys.has(
-                account.key,
-              );
+          {paperAccountOptions.length > 0 ? (
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+                TradingView Paper
+              </p>
 
-              return (
-                <label
-                  key={account.key}
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
-                    checked
-                      ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
-                      : "border-slate-700 bg-slate-950 text-slate-400"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() =>
-                      toggleStatsAccount(
-                        account.key,
-                      )
-                    }
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-cyan-400 focus:ring-cyan-400"
-                  />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {paperAccountOptions.map((account) => {
+                  const checked = statsAccountKeys.has(account.key);
 
-                  <span>{account.label}</span>
+                  return (
+                    <label
+                      key={account.key}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+                        checked
+                          ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
+                          : "border-slate-700 bg-slate-950 text-slate-400"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleStatsAccount(account.key)}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-cyan-400 focus:ring-cyan-400"
+                      />
 
-                  {account.isPaper ? (
-                    <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-                      Paper
-                    </span>
-                  ) : null}
-                </label>
-              );
-            })}
-          </div>
+                      <span>{account.label}</span>
+
+                      <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                        Paper
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {propAccountOptions.length > 0 ? (
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">
+                Prop Firm · via TradingView
+              </p>
+
+              <div className="mt-2 flex flex-wrap gap-2">
+                {propAccountOptions.map((account) => {
+                  const checked = statsAccountKeys.has(account.key);
+
+                  return (
+                    <label
+                      key={account.key}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+                        checked
+                          ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
+                          : "border-slate-700 bg-slate-950 text-slate-400"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleStatsAccount(account.key)}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-cyan-400 focus:ring-cyan-400"
+                      />
+
+                      <span>{account.label}</span>
+
+                      <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                        Prop
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {otherAccountOptions.length > 0 ? (
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Other Imports
+              </p>
+
+              <div className="mt-2 flex flex-wrap gap-2">
+                {otherAccountOptions.map((account) => {
+                  const checked = statsAccountKeys.has(account.key);
+
+                  return (
+                    <label
+                      key={account.key}
+                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+                        checked
+                          ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
+                          : "border-slate-700 bg-slate-950 text-slate-400"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleStatsAccount(account.key)}
+                        className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-cyan-400 focus:ring-cyan-400"
+                      />
+
+                      <span>{account.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -1279,8 +1388,10 @@ export default function TradesPage() {
                   >
                     {account.label}
                     {account.isPaper
-                      ? " (Paper)"
-                      : ""}
+                      ? " · Paper"
+                      : account.isProp
+                        ? " · Prop"
+                        : ""}
                   </option>
                 ),
               )}
@@ -1359,8 +1470,8 @@ export default function TradesPage() {
         </div>
       </div>
 
-      <div className="mt-8 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60">
-        <div className="flex flex-col gap-3 border-b border-slate-800 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-8 overflow-x-auto rounded-3xl border border-slate-800 bg-slate-900/60">
+        <div className="flex min-w-[1360px] flex-col gap-3 border-b border-slate-800 px-4 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-6">
           <div>
             <h3 className="text-xl font-bold">
               Trade Log
@@ -1397,46 +1508,46 @@ export default function TradesPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px]">
+          <table className="w-full min-w-[1360px] table-auto">
             <thead>
               <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wider text-slate-500">
-                <th className="px-6 py-4 font-semibold">
+                <th className="whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
                   Date
                 </th>
 
-                <th className="px-6 py-4 font-semibold">
+                <th className="whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
                   Symbol
                 </th>
 
-                <th className="px-6 py-4 font-semibold">
+                <th className="whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
                   Side
                 </th>
 
-                <th className="px-6 py-4 font-semibold">
+                <th className="whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
                   Qty
                 </th>
 
-                <th className="px-6 py-4 font-semibold">
+                <th className="whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
                   Entry
                 </th>
 
-                <th className="px-6 py-4 font-semibold">
+                <th className="whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
                   Exit
                 </th>
 
-                <th className="px-6 py-4 font-semibold">
+                <th className="whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
                   P/L
                 </th>
 
-                <th className="px-6 py-4 font-semibold">
+                <th className="min-w-[160px] whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
                   Account
                 </th>
 
-                <th className="px-6 py-4 font-semibold">
+                <th className="min-w-[220px] px-3 py-3 font-semibold lg:px-4">
                   Pair ID
                 </th>
 
-                <th className="px-6 py-4 font-semibold">
+                <th className="whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
                   Actions
                 </th>
               </tr>
@@ -1526,7 +1637,7 @@ export default function TradesPage() {
                           }
                           className="border-b border-slate-800/80 last:border-b-0 hover:bg-slate-800/30"
                         >
-                          <td className="px-6 py-5">
+                          <td className="whitespace-nowrap px-3 py-4 lg:px-4">
                             <p className="font-semibold">
                               {
                                 tradeDate.date
@@ -1540,12 +1651,12 @@ export default function TradesPage() {
                             </p>
                           </td>
 
-                          <td className="px-6 py-5 text-lg font-bold">
+                          <td className="whitespace-nowrap px-3 py-4 text-lg font-bold lg:px-4">
                             {trade.symbol ||
                               "—"}
                           </td>
 
-                          <td className="px-6 py-5">
+                          <td className="whitespace-nowrap px-3 py-4 lg:px-4">
                             <span
                               className={`rounded-full px-3 py-1 text-xs font-semibold ${
                                 side ===
@@ -1561,25 +1672,25 @@ export default function TradesPage() {
                             </span>
                           </td>
 
-                          <td className="px-6 py-5 text-slate-300">
+                          <td className="whitespace-nowrap px-3 py-4 text-slate-300 lg:px-4">
                             {formatQuantity(
                               trade.quantity,
                             )}
                           </td>
 
-                          <td className="px-6 py-5 text-slate-300">
+                          <td className="whitespace-nowrap px-3 py-4 text-slate-300 lg:px-4">
                             {formatPrice(
                               trade.entry_price,
                             )}
                           </td>
 
-                          <td className="px-6 py-5 text-slate-300">
+                          <td className="whitespace-nowrap px-3 py-4 text-slate-300 lg:px-4">
                             {formatPrice(
                               trade.exit_price,
                             )}
                           </td>
 
-                          <td className="px-6 py-5">
+                          <td className="whitespace-nowrap px-3 py-4 lg:px-4">
                             {displayPnl !== null ? (
                               <span
                                 className={`font-extrabold ${getMoneyClasses(
@@ -1611,20 +1722,22 @@ export default function TradesPage() {
                             )}
                           </td>
 
-                          <td className="px-6 py-5">
-                            <span className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300">
-                              {getTradeAccountLabel(
-                                trade,
-                              )}
-                            </span>
+                          <td className="px-3 py-4 lg:px-4">
+                            {renderAccountBadge(trade)}
                           </td>
 
-                          <td className="px-6 py-5 font-mono text-xs text-slate-400">
+                          <td
+                            className="max-w-[260px] truncate px-3 py-4 font-mono text-xs text-slate-400 lg:px-4"
+                            title={
+                              trade.broker_pair_id ||
+                              undefined
+                            }
+                          >
                             {trade.broker_pair_id ||
                               "—"}
                           </td>
 
-                          <td className="px-6 py-5">
+                          <td className="whitespace-nowrap px-3 py-4 lg:px-4">
                             <button
                               type="button"
                               disabled={!tradeId || isDeleting}
@@ -1645,7 +1758,7 @@ export default function TradesPage() {
           </table>
         </div>
 
-        <div className="flex flex-col gap-4 border-t border-slate-800 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-[1360px] flex-col gap-4 border-t border-slate-800 px-4 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-6">
           <p className="text-sm text-slate-500">
             Page {page} of{" "}
             {totalPages}
