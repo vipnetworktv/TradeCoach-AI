@@ -460,11 +460,12 @@ type BrokerAccountDb = {
 };
 
 export async function ensurePaperTradingBrokerAccount(
-  db: BrokerAccountDb,
+  db: unknown,
   userId: string,
 ) {
+  const brokerAccountDb = db as BrokerAccountDb;
   const now = new Date().toISOString();
-  const { data: existing, error: lookupError } = await db
+  const { data: existing, error: lookupError } = await brokerAccountDb
     .from("broker_accounts")
     .select("id")
     .eq("user_id", userId)
@@ -479,7 +480,9 @@ export async function ensurePaperTradingBrokerAccount(
     return existing[0].id;
   }
 
-  const { error: insertError } = await db.from("broker_accounts").insert({
+  const { error: insertError } = await brokerAccountDb
+    .from("broker_accounts")
+    .insert({
     user_id: userId,
     broker_name: TRADINGVIEW_BROKER_NAME,
     account_name: TRADINGVIEW_PAPER_ACCOUNT_NAME,
