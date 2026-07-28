@@ -99,7 +99,7 @@ export function resolveTradingViewAccountContext(input: {
   accountName?: string | null;
   brokerName?: string | null;
   accountType?: string | null;
-  isPaper?: boolean | string | null;
+  isPaper?: boolean | string | number | null;
 }): TradingViewAccountContext {
   const accountId = String(input.accountId || "").trim();
   const accountName = String(input.accountName || "").trim();
