@@ -13,39 +13,21 @@ const tradeCoachStatusMessage =
     "tradecoach-status-message",
   );
 
-const ninjatraderStatusDot =
-  document.getElementById(
-    "ninjatrader-status-dot",
-  );
+const tradingviewStatusDot = document.getElementById(
+  "tradingview-status-dot",
+);
 
-const ninjatraderStatusTitle =
-  document.getElementById(
-    "ninjatrader-status-title",
-  );
+const tradingviewStatusTitle = document.getElementById(
+  "tradingview-status-title",
+);
 
-const ninjatraderStatusMessage =
-  document.getElementById(
-    "ninjatrader-status-message",
-  );
+const tradingviewStatusMessage = document.getElementById(
+  "tradingview-status-message",
+);
 
-const openNinjatraderButton =
-  document.getElementById(
-    "open-ninjatrader",
-  );
-
-const tradovateStatusDot =  document.getElementById(
-    "tradovate-status-dot",
-  );
-
-const tradovateStatusTitle =
-  document.getElementById(
-    "tradovate-status-title",
-  );
-
-const tradovateStatusMessage =
-  document.getElementById(
-    "tradovate-status-message",
-  );
+const openTradingviewButton = document.getElementById(
+  "open-tradingview",
+);
 
 const pairingSection =
   document.getElementById(
@@ -72,20 +54,15 @@ const checkConnectionButton =
     "check-connection",
   );
 
-const openTradovateButton =
+const syncNowButton =
   document.getElementById(
-    "open-tradovate",
+    "sync-now",
   );
 
-const connectTradovateTabButton =
-  document.getElementById(
-    "connect-tradovate-tab",
-  );
 
-const connectNinjatraderTabButton =
-  document.getElementById(
-    "connect-ninjatrader-tab",
-  );
+const connectTradingviewTabButton = document.getElementById(
+  "connect-tradingview-tab",
+);
 
 const debugInfo =
   document.getElementById(
@@ -112,21 +89,50 @@ function showTradeCoachChecking() {
     "Verifying the extension connection...";
 }
 
-function showTradeCoachPaired(message) {
+function truncateStatusMessage(message, maxLength = 220) {
+  const text = safeString(message);
+
+  if (!text || text.length <= maxLength) {
+    return text || "";
+  }
+
+  return `${text.slice(0, maxLength - 1).trim()}…`;
+}
+
+function showTradeCoachPaired(message, state) {
   clearStatusClasses(
     tradeCoachStatusDot,
   );
 
-  tradeCoachStatusDot.classList.add(
-    "connected",
-  );
+  const pendingCount = Number(state?.pendingEventCount || 0);
+  const lastError = safeString(state?.lastDeviceError);
 
-  tradeCoachStatusTitle.textContent =
-    "TradeCoach connected";
+  if (pendingCount > 0) {
+    tradeCoachStatusDot.classList.add(
+      "warning",
+    );
 
-  tradeCoachStatusMessage.textContent =
-    message ||
-    "This browser is securely paired with your TradeCoach account.";
+    tradeCoachStatusTitle.textContent =
+      `${pendingCount} trade${pendingCount === 1 ? "" : "s"} waiting to sync`;
+
+    tradeCoachStatusMessage.textContent =
+      truncateStatusMessage(
+        lastError ||
+          message ||
+          "Trades were detected but have not reached TradeCoach yet.",
+      );
+  } else {
+    tradeCoachStatusDot.classList.add(
+      "connected",
+    );
+
+    tradeCoachStatusTitle.textContent =
+      "TradeCoach connected";
+
+    tradeCoachStatusMessage.textContent =
+      message ||
+      "This browser is securely paired with your TradeCoach account.";
+  }
 
   pairingSection.classList.add(
     "hidden",
@@ -135,6 +141,22 @@ function showTradeCoachPaired(message) {
   checkConnectionButton.classList.remove(
     "hidden",
   );
+
+  if (syncNowButton) {
+    syncNowButton.classList.toggle(
+      "hidden",
+      pendingCount === 0,
+    );
+  }
+}
+
+function safeString(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const cleaned = String(value).trim();
+  return cleaned || null;
 }
 
 function showTradeCoachUnpaired(message) {
@@ -160,6 +182,10 @@ function showTradeCoachUnpaired(message) {
   checkConnectionButton.classList.add(
     "hidden",
   );
+
+  if (syncNowButton) {
+    syncNowButton.classList.add("hidden");
+  }
 }
 
 function showTradeCoachOffline(message) {
@@ -185,94 +211,39 @@ function showTradeCoachOffline(message) {
   checkConnectionButton.classList.remove(
     "hidden",
   );
-}
 
-function showNinjatraderConnected(
-  lastSeenAt,
-) {
-  clearStatusClasses(
-    ninjatraderStatusDot,
-  );
-
-  ninjatraderStatusDot.classList.add(
-    "connected",
-  );
-
-  ninjatraderStatusTitle.textContent =
-    "NinjaTrader Web detected";
-
-  if (lastSeenAt) {
-    const formattedTime =
-      new Date(
-        lastSeenAt,
-      ).toLocaleTimeString();
-
-    ninjatraderStatusMessage.textContent =
-      `NinjaTrader Web was detected at ${formattedTime}. Live monitoring is ready.`;
-  } else {
-    ninjatraderStatusMessage.textContent =
-      "NinjaTrader Web is open and available for syncing.";
+  if (syncNowButton) {
+    syncNowButton.classList.remove("hidden");
   }
 }
 
-function showNinjatraderDisconnected() {
-  clearStatusClasses(
-    ninjatraderStatusDot,
-  );
+function showTradingViewConnected(lastSeenAt) {
+  clearStatusClasses(tradingviewStatusDot);
 
-  ninjatraderStatusDot.classList.add(
-    "warning",
-  );
+  tradingviewStatusDot.classList.add("connected");
 
-  ninjatraderStatusTitle.textContent =
-    "NinjaTrader Web not detected";
-
-  ninjatraderStatusMessage.textContent =
-    "Open NinjaTrader Web and sign in. A sign-in page alone does not count as connected.";
-}
-
-function showTradovateConnected(  lastSeenAt,
-) {
-  clearStatusClasses(
-    tradovateStatusDot,
-  );
-
-  tradovateStatusDot.classList.add(
-    "connected",
-  );
-
-  tradovateStatusTitle.textContent =
-    "Tradovate detected";
+  tradingviewStatusTitle.textContent = "TradingView detected";
 
   if (lastSeenAt) {
-    const formattedTime =
-      new Date(
-        lastSeenAt,
-      ).toLocaleTimeString();
+    const formattedTime = new Date(lastSeenAt).toLocaleTimeString();
 
-    tradovateStatusMessage.textContent =
-      `Tradovate was detected at ${formattedTime}. ` +
-      "Live monitoring is ready.";
+    tradingviewStatusMessage.textContent =
+      `TradingView was detected at ${formattedTime}. Live monitoring is ready.`;
   } else {
-    tradovateStatusMessage.textContent =
-      "Tradovate is open and available for syncing.";
+    tradingviewStatusMessage.textContent =
+      "TradingView is open and available for syncing.";
   }
 }
 
-function showTradovateDisconnected() {
-  clearStatusClasses(
-    tradovateStatusDot,
-  );
+function showTradingViewDisconnected() {
+  clearStatusClasses(tradingviewStatusDot);
 
-  tradovateStatusDot.classList.add(
-    "warning",
-  );
+  tradingviewStatusDot.classList.add("warning");
 
-  tradovateStatusTitle.textContent =
-    "Tradovate not detected";
+  tradingviewStatusTitle.textContent = "TradingView not detected";
 
-  tradovateStatusMessage.textContent =
-    "Open Tradovate and sign in, then click this extension icon while you are on that Tradovate tab and press Check connection.";
+  tradingviewStatusMessage.textContent =
+    "Open TradingView, sign in, then click this extension icon while you are on that chart tab and press Check connection.";
 }
 
 async function getActiveTab() {
@@ -306,62 +277,37 @@ function describeActiveTab(tab) {
   return `${title} · ${host}`;
 }
 
-function activeTabLooksLikeBroker(
-  tab,
-  broker,
-) {
-  const haystack = [
-    tab?.url,
-    tab?.pendingUrl,
-    tab?.title,
-  ]
+function activeTabLooksLikeBroker(tab) {
+  const haystack = [tab?.url, tab?.pendingUrl, tab?.title]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
 
   if (
-    /\b(sign in|log in|login|authenticate)\b/.test(
-      haystack,
-    ) ||
-    /\/(login|signin|sign-in|auth|welcome|sso)(\/|$|\?)/.test(
-      haystack,
-    )
+    /\b(sign in|log in|login|authenticate)\b/.test(haystack) ||
+    /\/(login|signin|sign-in|auth|welcome|sso)(\/|$|\?)/.test(haystack)
   ) {
     return false;
   }
 
-  if (broker === "ninjatrader") {
-    return (
-      haystack.includes("ninjatrader") ||
-      haystack.includes("ninja trader")
-    );
-  }
-
-  return haystack.includes("tradovate");
+  return haystack.includes("tradingview");
 }
 
-async function forceConnectActiveTab(
-  broker,
-) {
-  const activeTab =
-    await getActiveTab();
+async function forceConnectActiveTab() {
+  const activeTab = await getActiveTab();
 
   if (!activeTab?.id) {
     return {
       success: false,
-      error:
-        "No active tab was found in this window.",
+      error: "No active tab was found in this window.",
     };
   }
 
   return sendMessage({
     type: "FORCE_BROKER_TAB",
-    broker,
+    broker: "tradingview",
     tabId: activeTab.id,
-    pageUrl:
-      activeTab.url ||
-      activeTab.pendingUrl ||
-      activeTab.title,
+    pageUrl: activeTab.url || activeTab.pendingUrl || activeTab.title,
   });
 }
 
@@ -376,38 +322,19 @@ async function updateDebugInfo(state, activeTab) {
 
   debugInfo.textContent =
     `Active tab: ${describeActiveTab(activeTab)}\n` +
-    `Scan found Tradovate: ${scanFound.tradovate ? "yes" : "no"}\n` +
-    `Scan found NinjaTrader: ${scanFound.ninjatrader ? "yes" : "no"}\n` +
+    `Scan found TradingView: ${scanFound.tradingview ? "yes" : "no"}\n` +
+    `Paired: ${state?.paired ? "yes" : "no"}\n` +
+    `Pending trades/events: ${state?.pendingEventCount ?? 0}\n` +
+    `Last sync error: ${state?.lastDeviceError || "none"}\n` +
+    `Last successful sync: ${state?.lastSuccessfulSyncAt || "never"}\n` +
     `Extension v${chrome.runtime.getManifest().version}`;
 }
 
 function updateConnectTabButtons(activeTab) {
-  if (connectTradovateTabButton) {
-    const visible =
-      activeTab &&
-      activeTabLooksLikeBroker(
-        activeTab,
-        "tradovate",
-      );
+  if (connectTradingviewTabButton) {
+    const visible = activeTab && activeTabLooksLikeBroker(activeTab);
 
-    connectTradovateTabButton.classList.toggle(
-      "hidden",
-      !visible,
-    );
-  }
-
-  if (connectNinjatraderTabButton) {
-    const visible =
-      activeTab &&
-      activeTabLooksLikeBroker(
-        activeTab,
-        "ninjatrader",
-      );
-
-    connectNinjatraderTabButton.classList.toggle(
-      "hidden",
-      !visible,
-    );
+    connectTradingviewTabButton.classList.toggle("hidden", !visible);
   }
 }
 
@@ -470,26 +397,8 @@ async function refreshState() {
 
     updateConnectTabButtons(activeTab);
 
-    if (
-      activeTab?.id &&
-      activeTabLooksLikeBroker(
-        activeTab,
-        "tradovate",
-      )
-    ) {
-      await forceConnectActiveTab(
-        "tradovate",
-      );
-    } else if (
-      activeTab?.id &&
-      activeTabLooksLikeBroker(
-        activeTab,
-        "ninjatrader",
-      )
-    ) {
-      await forceConnectActiveTab(
-        "ninjatrader",
-      );
+    if (activeTab?.id && activeTabLooksLikeBroker(activeTab)) {
+      await forceConnectActiveTab();
     }
 
     await sendMessage({
@@ -507,8 +416,7 @@ async function refreshState() {
         "The extension state could not be loaded.",
       );
 
-      showTradovateDisconnected();
-      showNinjatraderDisconnected();
+      showTradingViewDisconnected();
       await updateDebugInfo(null, activeTab);
       return;
     }
@@ -517,65 +425,35 @@ async function refreshState() {
 
     await updateDebugInfo(state, activeTab);
 
-  const tradovateLastSeenTimestamp =
-    state.tradovateLastSeenAt
-      ? new Date(
-          state.tradovateLastSeenAt,
-        ).getTime()
-      : 0;
-
-  const ninjatraderLastSeenTimestamp =
-    state.ninjatraderLastSeenAt
-      ? new Date(
-          state.ninjatraderLastSeenAt,
-        ).getTime()
-      : 0;
+  const tradingviewLastSeenTimestamp = state.tradingviewLastSeenAt
+    ? new Date(state.tradingviewLastSeenAt).getTime()
+    : 0;
 
   const scanFound =
     state?.lastBrokerScanFound || {};
 
-  const tradovateRecentlyDetected =
-    Boolean(scanFound.tradovate) ||
-    (state.tradovateDetected &&
-      Date.now() - tradovateLastSeenTimestamp <
-        900000);
+  const tradingviewRecentlyDetected =
+    Boolean(scanFound.tradingview) ||
+    (state.tradingviewDetected &&
+      Date.now() - tradingviewLastSeenTimestamp < 900000);
 
-  const ninjatraderRecentlyDetected =
-    Boolean(scanFound.ninjatrader) ||
-    (state.ninjatraderDetected &&
-      Date.now() - ninjatraderLastSeenTimestamp <
-        900000);
-
-  if (tradovateRecentlyDetected) {
-    showTradovateConnected(
-      state.tradovateLastSeenAt,
-    );
+  if (tradingviewRecentlyDetected) {
+    showTradingViewConnected(state.tradingviewLastSeenAt);
   } else {
-    showTradovateDisconnected();
+    showTradingViewDisconnected();
 
     if (activeTab?.url) {
       try {
         const host = new URL(activeTab.url).hostname;
 
-        if (
-          host === "localhost" ||
-          host === "127.0.0.1"
-        ) {
-          tradovateStatusMessage.textContent =
-            "You're on TradeCoach right now. Switch to your Tradovate tab, click this extension icon there, then press Check connection.";
+        if (host === "localhost" || host === "127.0.0.1") {
+          tradingviewStatusMessage.textContent =
+            "You're on TradeCoach right now. Switch to your TradingView tab, click this extension icon there, then press Check connection.";
         }
       } catch {
         // Keep the default disconnected message.
       }
     }
-  }
-
-  if (ninjatraderRecentlyDetected) {
-    showNinjatraderConnected(
-      state.ninjatraderLastSeenAt,
-    );
-  } else {
-    showNinjatraderDisconnected();
   }
   if (!state.paired) {
     showTradeCoachUnpaired();
@@ -603,6 +481,7 @@ async function refreshState() {
   ) {
     showTradeCoachPaired(
       deviceResponse.message,
+      state,
     );
 
     return;
@@ -629,8 +508,7 @@ async function refreshState() {
         : "The extension popup failed to load its status.";
 
     showTradeCoachUnpaired(message);
-    showTradovateDisconnected();
-    showNinjatraderDisconnected();
+    showTradingViewDisconnected();
 
     if (debugInfo) {
       debugInfo.textContent =
@@ -755,91 +633,61 @@ checkConnectionButton.addEventListener(
   },
 );
 
-openNinjatraderButton.addEventListener(
-  "click",
-  async () => {
-    await sendMessage({
-      type: "OPEN_NINJATRADER",
-    });
-  },
-);
-
-openTradovateButton.addEventListener(  "click",
-  async () => {
-    await sendMessage({
-      type: "OPEN_TRADOVATE",
-    });
-  },
-);
-
-if (connectTradovateTabButton) {
-  connectTradovateTabButton.addEventListener(
+if (syncNowButton) {
+  syncNowButton.addEventListener(
     "click",
     async () => {
-      connectTradovateTabButton.disabled = true;
+      syncNowButton.disabled = true;
+      syncNowButton.textContent = "Syncing...";
 
-      connectTradovateTabButton.textContent =
-        "Connecting tab...";
-
-      const response =
-        await forceConnectActiveTab(
-          "tradovate",
-        );
+      const response = await sendMessage({
+        type: "FLUSH_PENDING_EVENTS",
+      });
 
       if (!response.success) {
-        tradovateStatusMessage.textContent =
+        tradeCoachStatusMessage.textContent =
           response.error ||
-          "Could not connect this tab.";
-
-        connectTradovateTabButton.disabled = false;
-
-        connectTradovateTabButton.textContent =
-          "Connect this Tradovate tab";
-
-        return;
+          "Pending trades could not be synced.";
       }
 
-      connectTradovateTabButton.textContent =
-        "Connected";
-
       await refreshState();
+
+      syncNowButton.disabled = false;
+      syncNowButton.textContent = "Sync pending trades";
     },
   );
 }
 
-if (connectNinjatraderTabButton) {
-  connectNinjatraderTabButton.addEventListener(
-    "click",
-    async () => {
-      connectNinjatraderTabButton.disabled = true;
+openTradingviewButton.addEventListener("click", async () => {
+  await sendMessage({
+    type: "OPEN_TRADINGVIEW",
+  });
+});
 
-      connectNinjatraderTabButton.textContent =
-        "Connecting tab...";
+if (connectTradingviewTabButton) {
+  connectTradingviewTabButton.addEventListener("click", async () => {
+    connectTradingviewTabButton.disabled = true;
 
-      const response =
-        await forceConnectActiveTab(
-          "ninjatrader",
-        );
+    connectTradingviewTabButton.textContent = "Connecting tab...";
 
-      if (!response.success) {
-        ninjatraderStatusMessage.textContent =
-          response.error ||
-          "Could not connect this tab.";
+    const response = await forceConnectActiveTab();
 
-        connectNinjatraderTabButton.disabled = false;
+    if (!response.success) {
+      tradingviewStatusMessage.textContent =
+        response.error || "Could not connect this tab.";
 
-        connectNinjatraderTabButton.textContent =
-          "Connect this NinjaTrader tab";
+      connectTradingviewTabButton.disabled = false;
 
-        return;
-      }
+      connectTradingviewTabButton.textContent =
+        "Connect this TradingView tab";
 
-      connectNinjatraderTabButton.textContent =
-        "Connected";
+      return;
+    }
 
-      await refreshState();
-    },
-  );
+    connectTradingviewTabButton.textContent = "Connected";
+
+    await refreshState();
+  });
 }
 
 refreshState();

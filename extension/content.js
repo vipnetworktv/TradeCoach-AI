@@ -1,18 +1,25 @@
+(() => {
+  if (window.__TRADECOACH_CONTENT_V1__) {
+    return;
+  }
+
+  window.__TRADECOACH_CONTENT_V1__ = true;
+
 let heartbeatTimer = null;
-let contextInvalidated = false;
+let extensionRefreshWarned = false;
+const loggedSyncErrors = new Set();
 
-const BROKER = window.location.hostname.includes("ninjatrader")
-  ? "ninjatrader"
-  : "tradovate";
+function warnExtensionRefreshNeeded(reason) {
+  if (extensionRefreshWarned) {
+    return;
+  }
 
-const PAGE_DETECTED_MESSAGE =
-  BROKER === "ninjatrader"
-    ? "NINJATRADER_PAGE_DETECTED"
-    : "TRADOVATE_PAGE_DETECTED";
-const forwardingKeys = new Set();
-const forwardedKeys = new Set();
+  extensionRefreshWarned = true;
 
-const MAX_FORWARDED_KEYS = 5000;
+  console.error(
+    `[TradeCoach] ${reason} Reload the extension at chrome://extensions, then hard-refresh this TradingView tab (Ctrl+Shift+R).`,
+  );
+}
 
 function extensionIsAvailable() {
   try {
@@ -26,9 +33,30 @@ function extensionIsAvailable() {
   }
 }
 
-function stopMonitoring() {
-  contextInvalidated = true;
+function isExtensionContextInvalidatedError(message) {
+  return String(message || "")
+    .toLowerCase()
+    .includes("extension context invalidated");
+}
 
+const BROKER = window.location.hostname.includes("ninjatrader")
+  ? "ninjatrader"
+  : window.location.hostname.includes("tradingview")
+    ? "tradingview"
+    : "tradovate";
+
+const PAGE_DETECTED_MESSAGE =
+  BROKER === "ninjatrader"
+    ? "NINJATRADER_PAGE_DETECTED"
+    : BROKER === "tradingview"
+      ? "TRADINGVIEW_PAGE_DETECTED"
+      : "TRADOVATE_PAGE_DETECTED";
+const forwardingKeys = new Set();
+const forwardedKeys = new Set();
+
+const MAX_FORWARDED_KEYS = 5000;
+
+function stopMonitoring() {
   if (heartbeatTimer !== null) {
     window.clearInterval(
       heartbeatTimer,
@@ -51,17 +79,22 @@ function stopMonitoring() {
     "visibilitychange",
     handleVisibilityChange,
   );
+
+  document.removeEventListener(
+    "tradecoach-broker-event",
+    handleBridgeCustomEvent,
+  );
 }
 
 function sendRuntimeMessage(message) {
   return new Promise((resolve) => {
-    if (
-      contextInvalidated ||
-      !extensionIsAvailable()
-    ) {
+    if (!extensionIsAvailable()) {
+      warnExtensionRefreshNeeded(
+        "Extension context is unavailable.",
+      );
+
       resolve({
         success: false,
-
         error:
           "Extension context is unavailable.",
       });
@@ -84,13 +117,13 @@ function sendRuntimeMessage(message) {
                 "Extension messaging failed.";
 
               if (
-                error
-                  .toLowerCase()
-                  .includes(
-                    "extension context invalidated",
-                  )
+                isExtensionContextInvalidatedError(
+                  error,
+                )
               ) {
-                stopMonitoring();
+                warnExtensionRefreshNeeded(
+                  "Extension context was invalidated.",
+                );
               }
 
               resolve({
@@ -109,19 +142,27 @@ function sendRuntimeMessage(message) {
                   "The background service worker did not respond.",
               },
             );
-          } catch {
-            stopMonitoring();
+          } catch (error) {
+            warnExtensionRefreshNeeded(
+              "Extension messaging failed.",
+            );
 
             resolve({
               success: false,
 
               error:
-                "Extension context was invalidated.",
+                error instanceof Error
+                  ? error.message
+                  : "Extension context was invalidated.",
             });
           }
         },
       );
     } catch (error) {
+      warnExtensionRefreshNeeded(
+        "Extension messaging failed.",
+      );
+
       resolve({
         success: false,
 
@@ -509,6 +550,72 @@ function normalizeContractMetadata(data) {
   };
 }
 
+function normalizeCompletedTrade(data) {
+  const id = safeString(
+    data?.id ?? data?.brokerPairId,
+  );
+  const symbol = safeString(data?.symbol);
+  const direction = safeString(data?.direction);
+  const quantity = safeNumber(data?.quantity);
+  const entryPrice = safeNumber(
+    data?.entryPrice,
+  );
+  const exitPrice = safeNumber(
+    data?.exitPrice,
+  );
+  const entryAt =
+    safeString(data?.entryAt) ||
+    new Date().toISOString();
+  const exitAt =
+    safeString(data?.exitAt) ||
+    entryAt;
+
+  if (
+    !id ||
+    !symbol ||
+    !direction ||
+    quantity === null ||
+    quantity <= 0 ||
+    entryPrice === null ||
+    exitPrice === null
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    brokerPairId:
+      safeString(data?.brokerPairId) || id,
+    symbol,
+    direction,
+    quantity,
+    entryPrice,
+    exitPrice,
+    entryAt,
+    exitAt,
+    grossPoints:
+      safeNumber(data?.grossPoints) ?? 0,
+    pointValue:
+      safeNumber(data?.pointValue) ?? 1,
+    netPnl: safeNumber(data?.netPnl) ?? 0,
+    fees: safeNumber(data?.fees) ?? 0,
+    accountExternalId:
+      safeString(data?.accountExternalId) ||
+      "tv:unknown",
+    accountName:
+      safeString(data?.accountName),
+    isPaper: data?.isPaper === true,
+    connectedBroker:
+      safeString(data?.connectedBroker),
+    buyFillId:
+      safeString(data?.buyFillId) ||
+      `tv-buy:${id}`,
+    sellFillId:
+      safeString(data?.sellFillId) ||
+      `tv-sell:${id}`,
+  };
+}
+
 function normalizeBrokerEvent(payload) {
   if (
     !payload ||
@@ -549,6 +656,16 @@ function normalizeBrokerEvent(payload) {
   ) {
     data =
       normalizeContractMetadata(
+        payload.data,
+      );
+  }
+
+  if (
+    payload.kind ===
+    "completed_trade"
+  ) {
+    data =
+      normalizeCompletedTrade(
         payload.data,
       );
   }
@@ -645,6 +762,45 @@ async function forwardBrokerEvent(
   }
 
   rememberForwardedKey(key);
+
+  if (brokerEvent.kind === "completed_trade") {
+    if (response?.queued && response?.synced) {
+      console.info(
+        "[TradeCoach] Completed trade synced to TradeCoach.",
+        {
+          pairId: brokerEvent.data.id,
+          symbol: brokerEvent.data.symbol,
+          direction: brokerEvent.data.direction,
+          netPnl: brokerEvent.data.netPnl,
+          isPaper: brokerEvent.data.isPaper,
+        },
+      );
+      return;
+    }
+
+    if (response?.queued) {
+      const syncError =
+        response?.syncError ||
+        (response?.paired === false
+          ? "Extension is not paired. Open TradeCoach → Connect TradingView and enter the pairing code in the extension popup."
+          : "Sync failed. Open the TradeCoach Sync popup for details.");
+
+      if (!loggedSyncErrors.has(syncError)) {
+        loggedSyncErrors.add(syncError);
+
+        console.warn(
+          `[TradeCoach] Trade saved locally but not synced yet: ${syncError}`,
+          {
+            pairId: brokerEvent.data.id,
+            symbol: brokerEvent.data.symbol,
+            pendingCount: response?.pendingCount,
+          },
+        );
+      }
+
+      return;
+    }
+  }
 
   if (brokerEvent.kind === "fill") {
     console.info(
@@ -749,11 +905,7 @@ async function forwardBrokerEvent(
 }
 
 async function notifyExtension() {
-  if (
-    contextInvalidated ||
-    !extensionIsAvailable()
-  ) {
-    stopMonitoring();
+  if (!extensionIsAvailable()) {
     return;
   }
 
@@ -812,25 +964,33 @@ function isBrokerTradingSession() {
   return true;
 }
 
+function handleBridgeCustomEvent(event) {
+  if (event.detail) {
+    forwardBrokerEvent(event.detail);
+  }
+}
+
 function handlePageMessage(event) {
   if (
-    event.source !== window ||
-    event.origin !==
-      window.location.origin ||
-    !event.data ||
-    event.data.source !==
-      "tradecoach-page-bridge"
+    window !== window.top &&
+    event.source !== window
   ) {
     return;
   }
 
   if (
-    event.data.type ===
-      "TRADECOACH_BROKER_EVENT"
+    !event.data ||
+    event.data.source !== "tradecoach-page-bridge"
   ) {
-    forwardBrokerEvent(
-      event.data.payload,
-    );
+    return;
+  }
+
+  if (event.origin && event.origin !== window.location.origin) {
+    return;
+  }
+
+  if (event.data.type === "TRADECOACH_BROKER_EVENT") {
+    forwardBrokerEvent(event.data.payload);
   }
 }
 
@@ -859,6 +1019,11 @@ document.addEventListener(
   handleVisibilityChange,
 );
 
+document.addEventListener(
+  "tradecoach-broker-event",
+  handleBridgeCustomEvent,
+);
+
 window.addEventListener(
   "beforeunload",
   stopMonitoring,
@@ -869,11 +1034,19 @@ window.addEventListener(
 
 notifyExtension();
 
+if (!extensionIsAvailable()) {
+  warnExtensionRefreshNeeded(
+    "Extension context is unavailable on this tab.",
+  );
+} else {
+  console.info(
+    `[TradeCoach] ${BROKER} content sync bridge loaded (v${chrome.runtime.getManifest().version}).`,
+  );
+}
+
 heartbeatTimer = window.setInterval(
   notifyExtension,
   15000,
 );
 
-console.info(
-  `[TradeCoach] ${BROKER} content sync bridge loaded.`,
-);
+})();

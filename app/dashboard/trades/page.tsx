@@ -9,6 +9,12 @@ import {
 
 import { tradeMatchesSearch } from "@/lib/trade-search";
 import {
+  buildTradeAccountOptions,
+  getTradeAccountKey,
+  getTradeAccountLabel,
+  STATS_ACCOUNT_FILTER_STORAGE_KEY,
+} from "@/lib/trade-accounts";
+import {
   getTradeDisplayPnl,
   getTradeOutcomeStats,
   getTradePendingReason,
@@ -104,40 +110,6 @@ function toNumber(
   return Number.isFinite(number)
     ? number
     : null;
-}
-
-function pickString(
-  trade: BrokerCompletedTrade,
-  keys: string[],
-): string | null {
-  for (const key of keys) {
-    const value = trade[key];
-
-    if (
-      value !== null &&
-      value !== undefined &&
-      String(value).trim()
-    ) {
-      return String(value).trim();
-    }
-  }
-
-  return null;
-}
-
-function getAccountLabel(
-  trade: BrokerCompletedTrade,
-): string {
-  return (
-    pickString(trade, [
-      "account_name",
-      "broker_account_name",
-      "account_label",
-      "account_external_id",
-      "broker_account_external_id",
-      "account_id",
-    ]) || "Tradovate"
-  );
 }
 
 function getTradeTimestamp(
@@ -465,6 +437,18 @@ export default function TradesPage() {
   ] = useState<string | null>(null);
 
   const [
+    statsAccountKeys,
+    setStatsAccountKeys,
+  ] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const [
+    statsAccountsReady,
+    setStatsAccountsReady,
+  ] = useState(false);
+
+  const [
     search,
     setSearch,
   ] = useState("");
@@ -596,43 +580,130 @@ export default function TradesPage() {
   ]);
 
   const accountOptions =
+    useMemo(
+      () =>
+        buildTradeAccountOptions(
+          trades,
+        ),
+      [trades],
+    );
+
+  useEffect(() => {
+    if (accountOptions.length === 0) {
+      setStatsAccountsReady(true);
+      return;
+    }
+
+    const allKeys = accountOptions.map(
+      (account) => account.key,
+    );
+
+    try {
+      const stored = localStorage.getItem(
+        STATS_ACCOUNT_FILTER_STORAGE_KEY,
+      );
+
+      if (stored) {
+        const parsed = JSON.parse(
+          stored,
+        ) as string[];
+        const next = new Set(
+          parsed.filter((key) =>
+            allKeys.includes(key),
+          ),
+        );
+
+        for (const key of allKeys) {
+          if (!parsed.includes(key)) {
+            next.add(key);
+          }
+        }
+
+        setStatsAccountKeys(next);
+      } else {
+        setStatsAccountKeys(
+          new Set(allKeys),
+        );
+      }
+    } catch {
+      setStatsAccountKeys(
+        new Set(allKeys),
+      );
+    }
+
+    setStatsAccountsReady(true);
+  }, [accountOptions]);
+
+  useEffect(() => {
+    if (
+      !statsAccountsReady ||
+      statsAccountKeys.size === 0
+    ) {
+      return;
+    }
+
+    localStorage.setItem(
+      STATS_ACCOUNT_FILTER_STORAGE_KEY,
+      JSON.stringify([
+        ...statsAccountKeys,
+      ]),
+    );
+  }, [
+    statsAccountKeys,
+    statsAccountsReady,
+  ]);
+
+  const tradesInDateRange =
     useMemo(() => {
-      return Array.from(
-        new Set(
-          trades.map((trade) =>
-            getAccountLabel(
+      return trades.filter(
+        (trade) =>
+          isInsideDateRange(
+            trade,
+            dateRange,
+          ),
+      );
+    }, [
+      trades,
+      dateRange,
+    ]);
+
+  const statsTrades =
+    useMemo(() => {
+      if (
+        !statsAccountsReady ||
+        statsAccountKeys.size === 0
+      ) {
+        return [];
+      }
+
+      return tradesInDateRange.filter(
+        (trade) =>
+          statsAccountKeys.has(
+            getTradeAccountKey(
               trade,
             ),
           ),
-        ),
-      ).sort((a, b) =>
-        a.localeCompare(b),
       );
-    }, [trades]);
+    }, [
+      tradesInDateRange,
+      statsAccountKeys,
+      statsAccountsReady,
+    ]);
 
   const filteredTrades =
     useMemo(() => {
-      return trades.filter(
+      return tradesInDateRange.filter(
         (trade) => {
-          const account =
-            getAccountLabel(
+          const accountKey =
+            getTradeAccountKey(
               trade,
             );
 
           if (
             accountFilter !==
               "all" &&
-            account !==
+            accountKey !==
               accountFilter
-          ) {
-            return false;
-          }
-
-          if (
-            !isInsideDateRange(
-              trade,
-              dateRange,
-            )
           ) {
             return false;
           }
@@ -673,25 +744,54 @@ export default function TradesPage() {
         },
       );
     }, [
-      trades,
+      tradesInDateRange,
       search,
       accountFilter,
       resultFilter,
-      dateRange,
     ]);
 
   const totals =
     useMemo(() => {
-      const stats = getTradeOutcomeStats(filteredTrades);
+      const stats = getTradeOutcomeStats(statsTrades);
       const accounts = new Set(
-        filteredTrades.map((trade) => getAccountLabel(trade)),
+        statsTrades.map((trade) => getTradeAccountKey(trade)),
       ).size;
 
       return {
         ...stats,
         accounts,
       };
-    }, [filteredTrades]);
+    }, [statsTrades]);
+
+  function toggleStatsAccount(
+    accountKey: string,
+  ) {
+    setStatsAccountKeys((current) => {
+      const next = new Set(current);
+
+      if (next.has(accountKey)) {
+        next.delete(accountKey);
+      } else {
+        next.add(accountKey);
+      }
+
+      return next;
+    });
+  }
+
+  function selectAllStatsAccounts() {
+    setStatsAccountKeys(
+      new Set(
+        accountOptions.map(
+          (account) => account.key,
+        ),
+      ),
+    );
+  }
+
+  function clearStatsAccounts() {
+    setStatsAccountKeys(new Set());
+  }
 
   const totalPages =
     Math.max(
@@ -822,7 +922,7 @@ export default function TradesPage() {
           trade.exit_price,
           trade.gross_points,
           getTradeDisplayPnl(trade),
-          getAccountLabel(
+          getTradeAccountLabel(
             trade,
           ),
           trade.broker || "csv",
@@ -1032,7 +1132,7 @@ export default function TradesPage() {
 
           <p className="mt-3 text-3xl font-extrabold">
             {
-              filteredTrades.length
+              statsTrades.length
             }
           </p>
 
@@ -1049,6 +1149,77 @@ export default function TradesPage() {
           </p>
         </div>
       </div>
+
+      {accountOptions.length > 0 ? (
+        <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-slate-300">
+                Stats include
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Choose which accounts count toward P/L, win rate, and trade totals. The trade log below can still show all accounts.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <button
+                type="button"
+                onClick={selectAllStatsAccounts}
+                className="rounded-lg border border-slate-700 px-3 py-1.5 text-slate-300 transition hover:border-cyan-400 hover:text-white"
+              >
+                Select all
+              </button>
+
+              <button
+                type="button"
+                onClick={clearStatsAccounts}
+                className="rounded-lg border border-slate-700 px-3 py-1.5 text-slate-300 transition hover:border-cyan-400 hover:text-white"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {accountOptions.map((account) => {
+              const checked = statsAccountKeys.has(
+                account.key,
+              );
+
+              return (
+                <label
+                  key={account.key}
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+                    checked
+                      ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
+                      : "border-slate-700 bg-slate-950 text-slate-400"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      toggleStatsAccount(
+                        account.key,
+                      )
+                    }
+                    className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-cyan-400 focus:ring-cyan-400"
+                  />
+
+                  <span>{account.label}</span>
+
+                  {account.isPaper ? (
+                    <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                      Paper
+                    </span>
+                  ) : null}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-8 rounded-3xl border border-slate-800 bg-slate-900/60 p-5">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -1100,13 +1271,16 @@ export default function TradesPage() {
                 (account) => (
                   <option
                     key={
-                      account
+                      account.key
                     }
                     value={
-                      account
+                      account.key
                     }
                   >
-                    {account}
+                    {account.label}
+                    {account.isPaper
+                      ? " (Paper)"
+                      : ""}
                   </option>
                 ),
               )}
@@ -1439,7 +1613,7 @@ export default function TradesPage() {
 
                           <td className="px-6 py-5">
                             <span className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-300">
-                              {getAccountLabel(
+                              {getTradeAccountLabel(
                                 trade,
                               )}
                             </span>

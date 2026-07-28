@@ -7,6 +7,10 @@ import {
   readCsvUploadText,
   type ExistingTradeFingerprint,
 } from "@/lib/trade-csv-import";
+import {
+  ensurePaperTradingBrokerAccount,
+  TRADINGVIEW_PAPER_BROKER,
+} from "@/lib/trade-accounts";
 import { createClient } from "@/lib/supabase/server";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 
@@ -99,7 +103,7 @@ export async function POST(request: Request) {
   if (parsedTrades.length === 0) {
     const detail =
       parseErrors[0]?.message ||
-      "Check that the file is a Tradovate or TradingView CSV export.";
+      "Check that the file is a TradingView CSV export.";
 
     return NextResponse.json(
       {
@@ -195,6 +199,21 @@ export async function POST(request: Request) {
   }
 
   const inserted = Math.max(0, upsertedCount - updates);
+
+  const importedPaperTrades = toUpsert.some(
+    (trade) => trade.broker === TRADINGVIEW_PAPER_BROKER,
+  );
+
+  if (importedPaperTrades) {
+    try {
+      await ensurePaperTradingBrokerAccount(db, user.id);
+    } catch (accountError) {
+      console.error(
+        "[TradeCoach] Could not ensure paper trading account:",
+        accountError,
+      );
+    }
+  }
 
   return NextResponse.json({
     success: true,

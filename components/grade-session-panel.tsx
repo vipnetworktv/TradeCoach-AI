@@ -657,7 +657,7 @@ export default function GradeSessionPanel({
           </h3>
 
           <p className="mt-2 max-w-3xl leading-7 text-slate-400">
-            TradeCoach analyzes your processed Tradovate trades for the selected
+            TradeCoach analyzes your processed TradingView trades for the selected
             period and turns them into a letter grade, your biggest opportunity,
             and a focused improvement plan.
           </p>

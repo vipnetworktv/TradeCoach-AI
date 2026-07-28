@@ -45,7 +45,7 @@ export const EXTENSION_SETUP_STEPS: ExtensionInstallStep[] = [
     title: "Pair with TradeCoach",
     description:
       "Return to TradeCoach, generate a pairing code, open the extension popup, and enter the code.",
-    hint: "After pairing, connect Tradovate or NinjaTrader Web from Accounts.",
+    hint: "After pairing, connect TradingView from Accounts.",
   },
 ];
 

@@ -619,7 +619,7 @@ export default function DashboardPage() {
     if (weeklyMetrics.scoredTrades === 0) {
       return {
         main:
-          "Complete a Tradovate trade and your live weekly coaching summary will appear here.",
+          "Complete a TradingView trade and your live weekly coaching summary will appear here.",
         positive:
           "TradeCoach is connected to the same completed-trade table used by your Trades page.",
         focus:
@@ -684,7 +684,7 @@ export default function DashboardPage() {
 
           <p className="mt-2 text-sm text-slate-400">
             Real processed trades synchronized from
-            Tradovate.
+            TradingView.
           </p>
         </div>
 
@@ -815,7 +815,7 @@ export default function DashboardPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Latest processed Tradovate trades
+                Latest processed TradingView trades
               </p>
             </div>
 
@@ -872,7 +872,7 @@ export default function DashboardPage() {
                       </p>
 
                       <p className="mt-2 text-sm text-slate-500">
-                        Your next completed Tradovate trade
+                        Your next completed TradingView trade
                         will appear here.
                       </p>
                     </td>
@@ -1004,7 +1004,7 @@ export default function DashboardPage() {
               </p>
 
               <h3 className="mt-2 text-xl font-bold">
-                Tradovate
+                TradingView
               </h3>
             </div>
 

@@ -1,3 +1,5 @@
+import type { SupportedBrokerId } from "@/lib/brokers";
+
 const APP_BRIDGE_SOURCE = "tradecoach-app";
 const EXTENSION_BRIDGE_SOURCE = "tradecoach-extension";
 const LIVE_WINDOW_MS = 15 * 60 * 1000;
@@ -6,13 +8,17 @@ export type ExtensionSyncState = {
   paired?: boolean;
   tradovateLastSeenAt?: string | null;
   ninjatraderLastSeenAt?: string | null;
+  tradingviewLastSeenAt?: string | null;
   tradovateUrl?: string | null;
   ninjatraderUrl?: string | null;
+  tradingviewUrl?: string | null;
   tradovateDetected?: boolean;
   ninjatraderDetected?: boolean;
+  tradingviewDetected?: boolean;
   lastBrokerScanFound?: {
     tradovate?: string | null;
     ninjatrader?: string | null;
+    tradingview?: string | null;
   } | null;
 };
 
@@ -23,6 +29,7 @@ type ExtensionBridgeResponse = {
   found?: {
     tradovate?: string | null;
     ninjatrader?: string | null;
+    tradingview?: string | null;
   };
 };
 
@@ -229,7 +236,7 @@ export async function getExtensionSyncState() {
 }
 
 export async function verifyBrokerLiveSync(
-  brokerId: "tradovate" | "ninjatrader",
+  brokerId: SupportedBrokerId,
 ) {
   const extensionReady =
     await waitForTradeCoachExtension();
@@ -256,22 +263,12 @@ export async function verifyBrokerLiveSync(
     };
   }
 
-  const lastSeenAt =
-    brokerId === "tradovate"
-      ? state.tradovateLastSeenAt
-      : state.ninjatraderLastSeenAt;
-
-  const scanFound =
-    state.lastBrokerScanFound || {};
+  const lastSeenAt = state.tradingviewLastSeenAt;
+  const scanFound = state.lastBrokerScanFound || {};
 
   const extensionLive =
-    brokerId === "tradovate"
-      ? Boolean(scanFound.tradovate) ||
-        (Boolean(state.tradovateDetected) &&
-          isBrokerLive(lastSeenAt))
-      : Boolean(scanFound.ninjatrader) ||
-        (Boolean(state.ninjatraderDetected) &&
-          isBrokerLive(lastSeenAt));
+    Boolean(scanFound.tradingview) ||
+    (Boolean(state.tradingviewDetected) && isBrokerLive(lastSeenAt));
 
   return {
     extensionAvailable: true,

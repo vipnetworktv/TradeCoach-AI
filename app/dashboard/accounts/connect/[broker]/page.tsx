@@ -15,11 +15,11 @@ export default async function ConnectBrokerPage({
 }: ConnectBrokerPageProps) {
   const { broker: brokerId } = await params;
 
-  if (brokerId !== "tradovate" && brokerId !== "ninjatrader") {
-    redirect("/dashboard/accounts/connect");
+  if (brokerId !== "tradingview") {
+    redirect("/dashboard/accounts/connect/tradingview");
   }
 
-  const broker = getBrokerConnectInfo(brokerId);
+  const broker = getBrokerConnectInfo("tradingview");
   const supabase = await createClient();
 
   const {
@@ -30,62 +30,38 @@ export default async function ConnectBrokerPage({
     redirect("/login");
   }
 
-  const highlights =
-    broker.id === "ninjatrader"
-      ? [
-          {
-            title: "NinjaTrader Web detection",
-            description:
-              "The extension recognizes your signed-in NinjaTrader Web session.",
-          },
-          {
-            title: "Execution syncing",
-            description:
-              "New entries, exits, partial fills, and stops are detected.",
-          },
-          {
-            title: "Completed trades",
-            description:
-              "Related executions are grouped into one complete trade.",
-          },
-          {
-            title: "AI grading",
-            description:
-              "TradeCoach creates a grade and coaching feedback.",
-          },
-        ]
-      : [
-          {
-            title: "Tradovate detection",
-            description:
-              "The extension recognizes your signed-in Tradovate session.",
-          },
-          {
-            title: "Fast fill syncing",
-            description:
-              "New entries, exits, partial fills, and stops are detected.",
-          },
-          {
-            title: "Completed trades",
-            description:
-              "Related fills are grouped into one complete trade.",
-          },
-          {
-            title: "AI grading",
-            description:
-              "TradeCoach creates a grade and coaching feedback.",
-          },
-        ];
+  const highlights = [
+    {
+      title: "TradingView detection",
+      description:
+        "The extension recognizes your signed-in TradingView chart and connected trading accounts.",
+    },
+    {
+      title: "All account types",
+      description:
+        "Syncs paper trading and live broker accounts connected inside TradingView (Tradovate, NinjaTrader, etc.).",
+    },
+    {
+      title: "Separate accounts in stats",
+      description:
+        "Each TradingView account appears separately so you can filter paper vs live performance.",
+    },
+    {
+      title: "AI coaching",
+      description:
+        "Completed trades feed your dashboard, reports, and AI coach.",
+    },
+  ];
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
       <section>
         <Link
-          href="/dashboard/accounts/connect"
+          href="/dashboard/accounts"
           className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 transition hover:text-cyan-300"
         >
           <span aria-hidden="true">←</span>
-          Back to broker selection
+          Back to accounts
         </Link>
 
         <p className="mt-8 text-sm font-medium uppercase tracking-[0.24em] text-cyan-300">
@@ -97,9 +73,9 @@ export default async function ConnectBrokerPage({
         </h1>
 
         <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400">
-          Open {broker.name} and sign in on their website. TradeCoach watches
-          that browser tab through the Chrome extension and syncs your trades
-          automatically.
+          Open TradingView in Chrome, sign in, and connect your broker or paper
+          account there. TradeCoach watches that browser tab through the Chrome
+          extension and syncs your trades automatically.
         </p>
       </section>
 
@@ -187,7 +163,6 @@ export default async function ConnectBrokerPage({
               stored in the TradeCoach database.
             </p>
           </div>
-
         </aside>
       </section>
     </div>

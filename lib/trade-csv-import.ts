@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { applyPaperTradingAccountDefaults } from "@/lib/trade-accounts";
+
 export const CSV_IMPORT_BROKER = "csv";
 
 export const CSV_IMPORT_HEADERS = [
@@ -964,7 +966,7 @@ function buildParsedTrade(input: {
   const account = input.account?.trim() || null;
   const accountLooksExternal = account && /^\d+$/.test(account);
 
-  return {
+  return applyPaperTradingAccountDefaults({
     rowNumber: input.rowNumber,
     broker: input.broker,
     broker_pair_id: buildCsvBrokerPairId(fingerprint, input.brokerPairId),
@@ -985,7 +987,7 @@ function buildParsedTrade(input: {
     buy_fill_external_id: input.buyFillId || null,
     sell_fill_external_id: input.sellFillId || null,
     fingerprint,
-  };
+  });
 }
 
 function pairFillOrders(
@@ -1925,6 +1927,7 @@ export function csvTradeToInsertRow(
   trade: ParsedCsvTrade,
   userId: string,
 ) {
+  const normalizedTrade = applyPaperTradingAccountDefaults(trade);
   const now = new Date().toISOString();
   const buyPrice =
     trade.direction === "long" ? trade.entry_price : trade.exit_price;
@@ -1948,25 +1951,27 @@ export function csvTradeToInsertRow(
 
   return {
     user_id: userId,
-    broker: resolveInsertBroker(trade.broker),
-    broker_pair_id: trade.broker_pair_id,
-    symbol: trade.symbol,
-    direction: trade.direction,
-    quantity: trade.quantity,
+    broker: resolveInsertBroker(normalizedTrade.broker),
+    broker_pair_id: normalizedTrade.broker_pair_id,
+    symbol: normalizedTrade.symbol,
+    direction: normalizedTrade.direction,
+    quantity: normalizedTrade.quantity,
     buy_price: buyPrice,
     sell_price: sellPrice,
-    entry_price: trade.entry_price,
-    exit_price: trade.exit_price,
-    entry_at: trade.entry_at,
-    exit_at: trade.exit_at,
+    entry_price: normalizedTrade.entry_price,
+    exit_price: normalizedTrade.exit_price,
+    entry_at: normalizedTrade.entry_at,
+    exit_at: normalizedTrade.exit_at,
     duration_seconds: durationSeconds,
-    gross_points: trade.gross_points,
+    gross_points: normalizedTrade.gross_points,
     point_value: pointValue,
-    gross_pnl: trade.net_pnl,
-    fees: trade.fees ?? 0,
-    net_pnl: trade.net_pnl,
+    gross_pnl: normalizedTrade.net_pnl,
+    fees: normalizedTrade.fees ?? 0,
+    net_pnl: normalizedTrade.net_pnl,
     account_external_id:
-      trade.account_external_id ?? trade.account_name ?? null,
+      normalizedTrade.account_external_id ??
+      normalizedTrade.account_name ??
+      null,
     buy_fill_external_id: buyFillExternalId,
     sell_fill_external_id: sellFillExternalId,
     source: CSV_IMPORT_SOURCE,
@@ -1976,9 +1981,20 @@ export function csvTradeToInsertRow(
     updated_at: now,
     raw_payload: {
       import_source: "csv",
-      import_broker: trade.broker,
+      import_broker: normalizedTrade.broker,
       imported_at: now,
-      account_label: trade.account_name ?? trade.account_external_id ?? null,
+      is_paper:
+        normalizedTrade.account_external_id === "tv:paper" ||
+        normalizedTrade.account_external_id === "tradingview-paper" ||
+        normalizedTrade.account_name
+          ?.toLowerCase()
+          .includes("paper") ||
+        false,
+      account_name: normalizedTrade.account_name ?? null,
+      account_label:
+        normalizedTrade.account_name ??
+        normalizedTrade.account_external_id ??
+        null,
     },
   };
 }

@@ -73,7 +73,7 @@ export default function ExtensionInstallModal({
               </h2>
               <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">
                 {welcome
-                  ? "You're almost set up. Install TradeCoach Sync in Chrome or Edge to automatically import trades from Tradovate and NinjaTrader Web."
+                  ? "You're almost set up. Install TradeCoach Sync in Chrome or Edge to automatically import trades from TradingView."
                   : "Download the Chrome extension, load it in your browser, then pair it with your TradeCoach account to sync live trades."}
               </p>
             </div>

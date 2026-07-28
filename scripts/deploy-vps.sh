@@ -45,9 +45,13 @@ fi
 echo "==> Building Next.js app"
 npm run build
 
-echo "==> Restarting PM2 process"
+echo "==> Restarting PM2 processes"
 pm2 delete tradecoach 2>/dev/null || true
+pm2 delete tradecoach-api 2>/dev/null || true
 pm2 start ecosystem.config.cjs
 pm2 save
 
-echo "Done. Check: pm2 status && pm2 logs tradecoach --lines 50"
+echo "Done. Check:"
+echo "  pm2 status"
+echo "  pm2 logs tradecoach-api --lines 50"
+echo "  pm2 logs tradecoach --lines 50"

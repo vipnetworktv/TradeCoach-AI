@@ -1,4 +1,4 @@
-export type SupportedBrokerId = "tradovate" | "ninjatrader";
+export type SupportedBrokerId = "tradingview";
 
 export type BrokerConnectInfo = {
   id: SupportedBrokerId;
@@ -14,26 +14,16 @@ export type BrokerConnectInfo = {
 
 export const BROKER_CONNECT_OPTIONS: BrokerConnectInfo[] = [
   {
-    id: "tradovate",
-    name: "Tradovate",
-    shortName: "Tradovate",
+    id: "tradingview",
+    name: "TradingView",
+    shortName: "TradingView",
     method: "Chrome extension",
     platforms: "Web",
-    syncs: "Live fills, fees, completed trades",
-    href: "/dashboard/accounts/connect/tradovate",
-    openUrl: "https://trader.tradovate.com/",
-    hostPattern: "trader.tradovate.com",
-  },
-  {
-    id: "ninjatrader",
-    name: "NinjaTrader Web",
-    shortName: "NinjaTrader",
-    method: "Chrome extension",
-    platforms: "Web",
-    syncs: "Executions, commissions, completed trades",
-    href: "/dashboard/accounts/connect/ninjatrader",
-    openUrl: "https://web-trader.ninjatrader.com/",
-    hostPattern: "web-trader.ninjatrader.com",
+    syncs:
+      "Automatic sync for paper trading and any broker connected inside TradingView",
+    href: "/dashboard/accounts/connect/tradingview",
+    openUrl: "https://www.tradingview.com/chart/",
+    hostPattern: "www.tradingview.com",
   },
 ];
 
@@ -65,7 +55,7 @@ export function formatBrokerRecordName(value: string | null | undefined) {
   }
 
   if (normalized.includes("tradingview") || normalized.includes("paper")) {
-    return "TradingView Paper";
+    return "TradingView";
   }
 
   if (normalized.includes("tradestation")) {
@@ -111,7 +101,7 @@ export async function upsertBrokerSession(
     status: "connected",
     is_active: true,
     last_synced_at: now,
-    account_name: `${broker.name} Web Session`,
+    account_name: "TradingView Session",
   };
 
   if (existingAccounts?.[0]) {

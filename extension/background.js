@@ -15,11 +15,14 @@ const MAX_EVENTS_PER_BATCH = 100;
 const DEFAULT_STATE = {
   tradovateDetected: false,
   ninjatraderDetected: false,
+  tradingviewDetected: false,
   lastSeenAt: null,
   tradovateLastSeenAt: null,
   ninjatraderLastSeenAt: null,
+  tradingviewLastSeenAt: null,
   tradovateUrl: null,
   ninjatraderUrl: null,
+  tradingviewUrl: null,
   syncEnabled: true,
 
   paired: false,
@@ -39,11 +42,13 @@ const DEFAULT_STATE = {
   totalFillPairsDetected: 0,
   totalFillFeesDetected: 0,
   totalContractMetadataDetected: 0,
+  totalCompletedTradesDetected: 0,
 
   lastFillDetectedAt: null,
   lastFillPairDetectedAt: null,
   lastFillFeeDetectedAt: null,
   lastContractMetadataAt: null,
+  lastCompletedTradeDetectedAt: null,
 };
 
 let activeFlushPromise = null;
@@ -78,6 +83,9 @@ function getPublicState(state) {
     ninjatraderDetected:
       state.ninjatraderDetected,
 
+    tradingviewDetected:
+      state.tradingviewDetected,
+
     lastSeenAt:
       state.lastSeenAt,
 
@@ -87,11 +95,17 @@ function getPublicState(state) {
     ninjatraderLastSeenAt:
       state.ninjatraderLastSeenAt,
 
+    tradingviewLastSeenAt:
+      state.tradingviewLastSeenAt,
+
     tradovateUrl:
       state.tradovateUrl,
 
     ninjatraderUrl:
       state.ninjatraderUrl,
+
+    tradingviewUrl:
+      state.tradingviewUrl,
 
     syncEnabled:
       state.syncEnabled,
@@ -138,6 +152,9 @@ function getPublicState(state) {
     totalContractMetadataDetected:
       state.totalContractMetadataDetected,
 
+    totalCompletedTradesDetected:
+      state.totalCompletedTradesDetected,
+
     lastFillDetectedAt:
       state.lastFillDetectedAt,
 
@@ -149,6 +166,9 @@ function getPublicState(state) {
 
     lastContractMetadataAt:
       state.lastContractMetadataAt,
+
+    lastCompletedTradeDetectedAt:
+      state.lastCompletedTradeDetectedAt,
   };
 }
 
@@ -162,6 +182,49 @@ async function readJsonResponse(
   }
 }
 
+function humanizeSyncError(message) {
+  const text = String(message || "").trim();
+
+  if (
+    text.includes("tradovate") &&
+    text.includes("ninjatrader") &&
+    !text.includes("tradingview")
+  ) {
+    return (
+      "Your TradeCoach API server is outdated and does not accept TradingView sync yet. " +
+      "On your VPS run: git pull && bash scripts/deploy-vps.sh — then click Sync pending trades in the extension popup."
+    );
+  }
+
+  return text;
+}
+
+function uniqueMessages(messages) {
+  return [
+    ...new Set(
+      messages.filter(
+        (message) =>
+          typeof message === "string" &&
+          message.trim(),
+      ),
+    ),
+  ];
+}
+
+function summarizeApiErrorMessages(messages) {
+  const unique = uniqueMessages(messages);
+
+  if (unique.length === 0) {
+    return null;
+  }
+
+  if (unique.length === 1) {
+    return unique[0];
+  }
+
+  return `${unique[0]} (${unique.length - 1} more similar error${unique.length === 2 ? "" : "s"})`;
+}
+
 function getApiErrorMessage(
   data,
   fallback,
@@ -169,25 +232,29 @@ function getApiErrorMessage(
   if (
     typeof data?.detail === "string"
   ) {
-    return data.detail;
+    return humanizeSyncError(data.detail);
   }
 
   if (
     Array.isArray(data?.detail)
   ) {
-    return data.detail
-      .map((item) =>
+    const summary = summarizeApiErrorMessages(
+      data.detail.map((item) =>
         typeof item?.msg === "string"
           ? item.msg
           : "Invalid request value.",
-      )
-      .join(" ");
+      ),
+    );
+
+    return (
+      humanizeSyncError(summary) || fallback
+    );
   }
 
   if (
     typeof data?.message === "string"
   ) {
-    return data.message;
+    return humanizeSyncError(data.message);
   }
 
   if (
@@ -196,13 +263,17 @@ function getApiErrorMessage(
     ) &&
     data.processing_errors.length > 0
   ) {
-    return data.processing_errors
-      .map((item) =>
+    const summary = summarizeApiErrorMessages(
+      data.processing_errors.map((item) =>
         typeof item?.error === "string"
           ? item.error
           : "The event could not be processed.",
-      )
-      .join(" ");
+      ),
+    );
+
+    return (
+      humanizeSyncError(summary) || fallback
+    );
   }
 
   return fallback;
@@ -658,15 +729,19 @@ async function performFlush() {
       !state.paired ||
       !state.deviceToken
     ) {
+      const message =
+        "TradeCoach Sync is not paired. Open TradeCoach → Connect TradingView, copy the code, then enter it in this extension popup.";
+
+      await chrome.storage.local.set({
+        lastDeviceError: message,
+      });
+
       return {
         success: false,
         paired: false,
-
-        syncedCount:
-          totalSynced,
-
-        pendingCount:
-          pendingEvents.length,
+        error: message,
+        syncedCount: totalSynced,
+        pendingCount: pendingEvents.length,
       };
     }
 
@@ -857,6 +932,10 @@ function hostnameMatchesBroker(hostname, broker) {
     return normalized.includes("ninjatrader");
   }
 
+  if (broker === "tradingview") {
+    return normalized.includes("tradingview");
+  }
+
   return normalized.includes("tradovate");
 }
 
@@ -975,6 +1054,10 @@ function tabMatchesBroker(tab, broker) {
     );
   }
 
+  if (broker === "tradingview") {
+    return haystack.includes("tradingview");
+  }
+
   return haystack.includes("tradovate");
 }
 
@@ -1023,6 +1106,10 @@ async function tabMatchesBrokerAsync(tab, broker) {
     );
   }
 
+  if (broker === "tradingview") {
+    return haystack.includes("tradingview");
+  }
+
   return haystack.includes("tradovate");
 }
 
@@ -1035,6 +1122,8 @@ async function handleBrokerTabCandidate(tab) {
 
   if (await tabMatchesBrokerAsync(tab, "ninjatrader")) {
     broker = "ninjatrader";
+  } else if (await tabMatchesBrokerAsync(tab, "tradingview")) {
+    broker = "tradingview";
   } else if (
     await tabMatchesBrokerAsync(tab, "tradovate")
   ) {
@@ -1057,7 +1146,7 @@ async function handleBrokerTabCandidate(tab) {
     tab.url || tab.pendingUrl,
   );
 
-  await injectBrokerScripts(tab.id);
+  await injectBrokerScripts(tab.id, broker);
 
   return {
     broker,
@@ -1122,6 +1211,17 @@ async function markBrokerDetected(
     return;
   }
 
+  if (broker === "tradingview") {
+    await chrome.storage.local.set({
+      tradingviewDetected: true,
+      tradingviewLastSeenAt: now,
+      lastSeenAt: now,
+      tradingviewUrl: pageUrl || null,
+    });
+
+    return;
+  }
+
   await chrome.storage.local.set({
     tradovateDetected: true,
     tradovateLastSeenAt: now,
@@ -1141,6 +1241,16 @@ async function clearBrokerDetection(broker) {
     return;
   }
 
+  if (broker === "tradingview") {
+    await chrome.storage.local.set({
+      tradingviewDetected: false,
+      tradingviewLastSeenAt: null,
+      tradingviewUrl: null,
+    });
+
+    return;
+  }
+
   await chrome.storage.local.set({
     tradovateDetected: false,
     tradovateLastSeenAt: null,
@@ -1148,24 +1258,38 @@ async function clearBrokerDetection(broker) {
   });
 }
 
-async function injectBrokerScripts(tabId) {
+async function injectBrokerScripts(tabId, broker = "tradovate") {
+  const bridgeFile =
+    broker === "ninjatrader"
+      ? "page-bridge-ninjatrader.js"
+      : broker === "tradingview"
+        ? "page-bridge-tradingview.js"
+        : "page-bridge.js";
+
+  const target =
+    broker === "tradingview"
+      ? { tabId, allFrames: true }
+      : { tabId };
+
   try {
     await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ["page-bridge.js"],
+      target,
+      files: [bridgeFile],
       world: "MAIN",
     });
   } catch {
     // Bridge may already be present.
   }
 
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ["content.js"],
-    });
-  } catch {
-    // Content script may already be present.
+  if (broker !== "tradingview") {
+    try {
+      await chrome.scripting.executeScript({
+        target,
+        files: ["content.js"],
+      });
+    } catch {
+      // Content script may already be present.
+    }
   }
 }
 
@@ -1268,7 +1392,7 @@ async function forceBrokerTab(
     tab.url || tab.pendingUrl || pageUrl,
   );
 
-  await injectBrokerScripts(tabId);
+  await injectBrokerScripts(tabId, broker);
 
   return {
     broker,
@@ -1289,6 +1413,10 @@ async function refreshBrokerDetectionFromTabs() {
         : null,
     ninjatrader:
       activeMatch?.broker === "ninjatrader"
+        ? activeMatch.url
+        : null,
+    tradingview:
+      activeMatch?.broker === "tradingview"
         ? activeMatch.url
         : null,
   };
@@ -1322,6 +1450,19 @@ async function refreshBrokerDetectionFromTabs() {
           match.url || "ninjatrader-tab";
       }
     }
+
+    if (
+      !found.tradingview &&
+      (await tabMatchesBrokerAsync(tab, "tradingview"))
+    ) {
+      const match =
+        await handleBrokerTabCandidate(tab);
+
+      if (match?.broker === "tradingview") {
+        found.tradingview =
+          match.url || "tradingview-tab";
+      }
+    }
   }
 
   if (!found.tradovate) {
@@ -1330,6 +1471,10 @@ async function refreshBrokerDetectionFromTabs() {
 
   if (!found.ninjatrader) {
     await clearBrokerDetection("ninjatrader");
+  }
+
+  if (!found.tradingview) {
+    await clearBrokerDetection("tradingview");
   }
 
   await chrome.storage.local.set({
@@ -1672,11 +1817,71 @@ function createContractMetadataEvent(
   };
 }
 
+function createCompletedTradeEvent(
+  trade,
+  metadata,
+  broker = "tradingview",
+) {
+  const pairId = String(
+    trade.brokerPairId || trade.id,
+  );
+  const accountExternalId =
+    trade.accountExternalId || "tv:unknown";
+
+  return {
+    broker,
+    event_type: "completed_trade",
+    broker_event_id: pairId,
+    account_external_id: accountExternalId,
+    symbol: trade.symbol || null,
+    occurred_at:
+      trade.exitAt ||
+      metadata.detectedAt ||
+      new Date().toISOString(),
+    source: "live",
+    payload: {
+      pair_id: pairId,
+      symbol: trade.symbol,
+      direction: trade.direction,
+      quantity: trade.quantity,
+      entry_price: trade.entryPrice,
+      exit_price: trade.exitPrice,
+      entry_at: trade.entryAt,
+      exit_at: trade.exitAt,
+      gross_points: trade.grossPoints,
+      point_value: trade.pointValue,
+      net_pnl: trade.netPnl,
+      fees: trade.fees ?? 0,
+      buy_fill_id: trade.buyFillId,
+      sell_fill_id: trade.sellFillId,
+      account_external_id: accountExternalId,
+      account_name: trade.accountName || null,
+      is_paper: trade.isPaper === true,
+      connected_broker: trade.connectedBroker || null,
+      page_url:
+        metadata.pageUrl || null,
+      detected_at:
+        metadata.detectedAt ||
+        new Date().toISOString(),
+    },
+  };
+}
+
 function createBrokerEvent(
   brokerEvent,
   metadata,
   broker = "tradovate",
 ) {
+  if (
+    brokerEvent.kind === "completed_trade"
+  ) {
+    return createCompletedTradeEvent(
+      brokerEvent.data,
+      metadata,
+      broker,
+    );
+  }
+
   if (
     brokerEvent.kind === "fill"
   ) {
@@ -1833,11 +2038,39 @@ async function handleBrokerEvent(
     });
   }
 
+  if (
+    queueResult.added &&
+    brokerEvent.kind ===
+      "completed_trade"
+  ) {
+    await chrome.storage.local.set({
+      totalCompletedTradesDetected:
+        Number(
+          state.totalCompletedTradesDetected ||
+          0,
+        ) + 1,
+
+      lastCompletedTradeDetectedAt:
+        now,
+    });
+  }
+
   const flushResult =
     await flushPendingEvents();
 
+  const syncError =
+    flushResult.error ||
+    (flushResult.paired === false
+      ? "TradeCoach Sync is not paired. Open TradeCoach → Connect TradingView and enter the pairing code in the extension popup."
+      : null) ||
+    (!flushResult.success
+      ? "Sync failed. Open the TradeCoach Sync popup for details."
+      : null);
+
   return {
     success: true,
+
+    paired: flushResult.paired !== false,
 
     queued:
       queueResult.added,
@@ -1856,8 +2089,7 @@ async function handleBrokerEvent(
     pendingCount:
       flushResult.pendingCount,
 
-    syncError:
-      flushResult.error || null,
+    syncError,
   };
 }
 
@@ -2207,6 +2439,86 @@ chrome.runtime.onMessage.addListener(
 
     if (
       message?.type ===
+      "TRADINGVIEW_PAGE_DETECTED"
+    ) {
+      const pageUrl =
+        sender.tab?.url ||
+        message.pageUrl ||
+        null;
+
+      if (
+        isBrokerSignInPage(
+          pageUrl,
+          sender.tab?.title,
+        )
+      ) {
+        clearBrokerDetection("tradingview")
+          .then(() => {
+            sendResponse({
+              success: true,
+              skipped: true,
+            });
+          })
+          .catch((error) => {
+            sendResponse({
+              success: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "TradingView detection failed.",
+            });
+          });
+
+        return true;
+      }
+
+      chrome.storage.local
+        .set({
+          tradingviewDetected: true,
+
+          tradingviewLastSeenAt:
+            new Date().toISOString(),
+
+          lastSeenAt:
+            new Date().toISOString(),
+
+          tradingviewUrl:
+            sender.tab?.url ||
+            message.pageUrl ||
+            null,
+        })
+        .then(async () => {
+          await registerBrokerSession(
+            "tradingview",
+            sender.tab?.url ||
+              message.pageUrl ||
+              null,
+          );
+
+          const result =
+            await flushPendingEvents();
+
+          sendResponse({
+            success: true,
+            flushResult: result,
+          });
+        })
+        .catch((error) => {
+          sendResponse({
+            success: false,
+
+            error:
+              error instanceof Error
+                ? error.message
+                : "TradingView detection failed.",
+          });
+        });
+
+      return true;
+    }
+
+    if (
+      message?.type ===
       "TRADOVATE_BROKER_EVENT_DETECTED"
     ) {
       handleBrokerEvent(message)
@@ -2263,12 +2575,32 @@ chrome.runtime.onMessage.addListener(
 
     if (
       message?.type ===
+      "OPEN_TRADINGVIEW"
+    ) {
+      chrome.tabs
+        .create({
+          url:
+            "https://www.tradingview.com/chart/",
+        })
+        .then(() => {
+          sendResponse({
+            success: true,
+          });
+        });
+
+      return true;
+    }
+
+    if (
+      message?.type ===
       "FORCE_BROKER_TAB"
     ) {
       forceBrokerTab(
         message.broker === "ninjatrader"
           ? "ninjatrader"
-          : "tradovate",
+          : message.broker === "tradingview"
+            ? "tradingview"
+            : "tradovate",
         message.tabId,
         message.pageUrl,
       )

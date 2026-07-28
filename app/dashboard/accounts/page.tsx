@@ -68,22 +68,13 @@ type DetectedAccount = {
 
 const BROKER_ROADMAP = [
   {
-    name: "Tradovate",
-    method: "Browser extension + trade bridge",
-    status: "Available now",
-    statusClass:
-      "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
-    description:
-      "Live fills, completed trades, fees, reports, and AI coaching.",
-  },
-  {
-    name: "NinjaTrader Web",
+    name: "TradingView",
     method: "Chrome extension + trade bridge",
     status: "Available now",
     statusClass:
       "border-emerald-400/20 bg-emerald-400/10 text-emerald-300",
     description:
-      "Executions, commissions, completed trades, reports, and AI coaching from NinjaTrader Web.",
+      "Paper trading and broker-connected accounts (Tradovate, NinjaTrader, etc.) sync live fills, fees, reports, and AI coaching.",
   },
   {
     name: "TradeStation",
@@ -549,10 +540,9 @@ export default async function AccountsPage() {
           </h1>
 
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            Manage every broker account TradeCoach AI uses to import
-            executions, build completed trades, and create reports and AI
-            coaching. You can connect multiple brokers and TradeCoach keeps all
-            trades in one place.
+            Manage TradingView and synced trading accounts TradeCoach uses to
+            import executions, build completed trades, and create reports and AI
+            coaching.
           </p>
         </div>
 
@@ -607,7 +597,7 @@ export default async function AccountsPage() {
 
           <p className="mt-2 text-sm leading-6 text-emerald-100/75">
             TradeCoach is currently tracking imported trades from{" "}
-            {activeBrokerNames.join(", ")}. Add another broker anytime from{" "}
+            {activeBrokerNames.join(", ")}. Reconnect or manage your feed from{" "}
             <Link
               href="/dashboard/accounts/connect"
               className="font-semibold text-emerald-200 underline decoration-emerald-300/40 underline-offset-4"
@@ -635,9 +625,9 @@ export default async function AccountsPage() {
           </h2>
 
           <p className="mt-2 text-sm leading-6 text-slate-400">
-            Start with {BROKER_CONNECT_OPTIONS[0].name} or{" "}
-            {BROKER_CONNECT_OPTIONS[1].name}. You can add the other later without
-            losing any synced trades.
+            Connect {BROKER_CONNECT_OPTIONS[0].name} with the TradeCoach Sync
+            extension. Paper and broker-connected accounts inside TradingView
+            will sync automatically.
           </p>
         </section>
       )}
@@ -1031,14 +1021,13 @@ export default async function AccountsPage() {
           </p>
 
           <h2 className="mt-2 text-2xl font-semibold text-white">
-            Built for more than Tradovate
+            Built for TradingView and beyond
           </h2>
 
           <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-400">
-            The dashboard and trade database are broker-neutral. Each broker
-            will use its own connector, but all connectors will send the same
-            normalized account, execution, fee, and completed-trade format into
-            TradeCoach.
+            Connect through TradingView to sync paper and live broker accounts.
+            Additional direct broker connectors may follow, but all feeds use the
+            same normalized trade format in TradeCoach.
           </p>
         </div>
 

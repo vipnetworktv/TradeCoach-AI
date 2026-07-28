@@ -1848,9 +1848,9 @@ export default function AICoachPage() {
           title:
             "Complete More Trades to Build Your Analysis",
           description:
-            "TradeCoach needs processed Tradovate trades in the selected date range before it can identify a reliable performance pattern.",
+            "TradeCoach needs processed TradingView trades in the selected date range before it can identify a reliable performance pattern.",
           recommendation:
-            "Complete a full entry and exit in Tradovate, then refresh this page. The new trade will also update automatically when Supabase realtime is enabled.",
+            "Complete a full entry and exit in TradingView, then refresh this page. The new trade will also update automatically when Supabase realtime is enabled.",
         };
       }
 
@@ -2008,7 +2008,7 @@ export default function AICoachPage() {
             description:
               "There are no processed trades in the selected date range.",
             recommendation:
-              "Select a wider date range or complete another Tradovate trade.",
+              "Select a wider date range or complete another TradingView trade.",
           },
         ];
       }

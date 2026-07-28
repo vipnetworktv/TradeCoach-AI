@@ -39,9 +39,58 @@ SUPABASE_SECRET_KEY = os.getenv(
 
 MAX_EVENTS_PER_REQUEST = 100
 
+FUTURES_POINT_VALUES = {
+    "ES": 50.0,
+    "MES": 5.0,
+    "NQ": 20.0,
+    "MNQ": 2.0,
+    "RTY": 50.0,
+    "M2K": 5.0,
+    "YM": 5.0,
+    "MYM": 0.5,
+    "CL": 1000.0,
+    "MCL": 100.0,
+    "GC": 100.0,
+    "MGC": 10.0,
+    "SI": 5000.0,
+    "SIL": 1000.0,
+    "NG": 10000.0,
+    "ZB": 1000.0,
+    "ZN": 1000.0,
+    "ZF": 1000.0,
+}
+
+
+def get_futures_point_value(
+    symbol: str | None,
+) -> float:
+    normalized = safe_string(
+        symbol,
+    )
+
+    if not normalized:
+        return 1.0
+
+    upper = normalized.upper()
+
+    if upper in FUTURES_POINT_VALUES:
+        return FUTURES_POINT_VALUES[upper]
+
+    for length in range(
+        min(4, len(upper)),
+        1,
+        -1,
+    ):
+        key = upper[:length]
+
+        if key in FUTURES_POINT_VALUES:
+            return FUTURES_POINT_VALUES[key]
+
+    return 1.0
+
 
 class BrokerSyncEvent(BaseModel):
-    broker: Literal["tradovate", "ninjatrader"] = "tradovate"
+    broker: Literal["tradingview"] = "tradingview"
 
     event_type: str = Field(
         min_length=1,
@@ -2493,6 +2542,391 @@ async def enrich_completed_trades_for_contract(
     return updated_count
 
 
+async def ensure_tradingview_account_record(
+    *,
+    user_id: str,
+    account_external_id: str,
+    account_name: str | None,
+    is_paper: bool,
+    connected_broker: str | None,
+) -> None:
+    broker_name = "TradingView"
+
+    if connected_broker == "tradovate":
+        broker_name = "Tradovate"
+    elif connected_broker == "ninjatrader":
+        broker_name = "NinjaTrader Web"
+    elif connected_broker == "ibkr":
+        broker_name = "Interactive Brokers"
+    elif connected_broker == "tradestation":
+        broker_name = "TradeStation"
+    elif connected_broker:
+        broker_name = connected_broker.replace("-", " ").title()
+
+    resolved_name = account_name or (
+        "TradingView Paper"
+        if is_paper
+        else f"{broker_name} (TradingView)"
+    )
+
+    existing_accounts = await supabase_get(
+        "broker_accounts",
+        params={
+            "select":
+                "id",
+            "user_id":
+                f"eq.{user_id}",
+            "broker_name":
+                f"eq.{broker_name}",
+            "account_name":
+                f"eq.{resolved_name}",
+            "limit":
+                "1",
+        },
+    )
+
+    now_iso = utc_now().isoformat()
+
+    values = {
+        "status":
+            "connected",
+        "is_active":
+            True,
+        "last_synced_at":
+            now_iso,
+        "account_name":
+            resolved_name,
+    }
+
+    if existing_accounts:
+        await supabase_patch(
+            "broker_accounts",
+            params={
+                "id":
+                    f"eq.{existing_accounts[0]['id']}",
+            },
+            values=values,
+        )
+        return
+
+    insert_values = {
+        **values,
+        "user_id":
+            user_id,
+        "broker_name":
+            broker_name,
+        "account_number_masked":
+            account_external_id[-12:],
+        "environment":
+            "demo"
+            if is_paper
+            else "live",
+        "currency":
+            "USD",
+    }
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=20.0,
+        ) as client:
+            response = await client.post(
+                (
+                    f"{SUPABASE_URL}/rest/v1/"
+                    "broker_accounts"
+                ),
+                json=insert_values,
+                headers=service_headers(
+                    prefer="return=minimal",
+                ),
+            )
+    except httpx.RequestError:
+        return
+
+    if response.status_code not in (
+        200,
+        201,
+    ):
+        return
+
+
+async def process_completed_trade_event(
+    *,
+    event: BrokerSyncEvent,
+    device: dict[str, Any],
+) -> dict[str, Any]:
+    payload = event.payload
+
+    pair_id = first_string(
+        payload.get("pair_id"),
+        event.broker_event_id,
+    )
+
+    symbol = first_string(
+        payload.get("symbol"),
+        event.symbol,
+    )
+
+    direction = first_string(
+        payload.get("direction"),
+    )
+
+    quantity = first_float(
+        payload.get("quantity"),
+    )
+
+    entry_price = first_float(
+        payload.get("entry_price"),
+        payload.get("entryPrice"),
+    )
+
+    exit_price = first_float(
+        payload.get("exit_price"),
+        payload.get("exitPrice"),
+    )
+
+    entry_at = parse_datetime(
+        payload.get("entry_at"),
+    )
+
+    exit_at = parse_datetime(
+        payload.get("exit_at"),
+        event.occurred_at,
+    )
+
+    if (
+        not pair_id
+        or not symbol
+        or direction not in (
+            "long",
+            "short",
+        )
+        or quantity is None
+        or quantity <= 0
+        or entry_price is None
+        or exit_price is None
+        or entry_at is None
+        or exit_at is None
+    ):
+        raise RuntimeError(
+            (
+                "The completed trade event is "
+                "missing required trade fields."
+            ),
+        )
+
+    buy_price = (
+        entry_price
+        if direction == "long"
+        else exit_price
+    )
+
+    sell_price = (
+        exit_price
+        if direction == "long"
+        else entry_price
+    )
+
+    duration_seconds = max(
+        0.0,
+        (
+            exit_at - entry_at
+        ).total_seconds(),
+    )
+
+    gross_points = (
+        exit_price - entry_price
+        if direction == "long"
+        else entry_price - exit_price
+    )
+
+    point_value = first_float(
+        payload.get("point_value"),
+    )
+
+    if point_value is None:
+        point_value = get_futures_point_value(
+            symbol,
+        )
+
+    fees = first_float(
+        payload.get("fees"),
+    ) or 0.0
+
+    net_pnl = first_float(
+        payload.get("net_pnl"),
+    )
+
+    gross_pnl = (
+        gross_points
+        * point_value
+        * quantity
+    )
+
+    if net_pnl is None:
+        net_pnl = gross_pnl - fees
+
+    account_external_id = first_string(
+        payload.get(
+            "account_external_id",
+        ),
+        event.account_external_id,
+    ) or "tv:unknown"
+
+    account_name = first_string(
+        payload.get("account_name"),
+    )
+
+    is_paper = bool(
+        payload.get("is_paper"),
+    )
+
+    connected_broker = first_string(
+        payload.get("connected_broker"),
+    )
+
+    buy_fill_id = first_string(
+        payload.get("buy_fill_id"),
+    ) or f"tv-buy:{pair_id}"
+
+    sell_fill_id = first_string(
+        payload.get("sell_fill_id"),
+    ) or f"tv-sell:{pair_id}"
+
+    now_iso = utc_now().isoformat()
+
+    completed_trade = {
+        "user_id":
+            device["user_id"],
+
+        "device_id":
+            device["id"],
+
+        "broker":
+            event.broker,
+
+        "broker_pair_id":
+            pair_id,
+
+        "buy_fill_external_id":
+            buy_fill_id,
+
+        "sell_fill_external_id":
+            sell_fill_id,
+
+        "account_external_id":
+            account_external_id,
+
+        "symbol":
+            symbol,
+
+        "direction":
+            direction,
+
+        "quantity":
+            quantity,
+
+        "buy_price":
+            buy_price,
+
+        "sell_price":
+            sell_price,
+
+        "entry_price":
+            entry_price,
+
+        "exit_price":
+            exit_price,
+
+        "entry_at":
+            entry_at.isoformat(),
+
+        "exit_at":
+            exit_at.isoformat(),
+
+        "duration_seconds":
+            duration_seconds,
+
+        "gross_points":
+            gross_points,
+
+        "point_value":
+            point_value,
+
+        "gross_pnl":
+            gross_pnl,
+
+        "fees":
+            fees,
+
+        "net_pnl":
+            net_pnl,
+
+        "source":
+            event.source,
+
+        "status":
+            "processed",
+
+        "processing_error":
+            None,
+
+        "processed_at":
+            now_iso,
+
+        "updated_at":
+            now_iso,
+
+        "raw_payload": {
+            "completed_trade":
+                payload,
+
+            "import_source":
+                "extension",
+
+            "account_name":
+                account_name,
+
+            "is_paper":
+                is_paper,
+
+            "connected_broker":
+                connected_broker,
+        },
+    }
+
+    await supabase_upsert(
+        "broker_completed_trades",
+        records=completed_trade,
+        on_conflict=(
+            "user_id,broker,"
+            "broker_pair_id"
+        ),
+    )
+
+    if event.broker == "tradingview":
+        await ensure_tradingview_account_record(
+            user_id=device["user_id"],
+            account_external_id=account_external_id,
+            account_name=account_name,
+            is_paper=is_paper,
+            connected_broker=connected_broker,
+        )
+
+    return {
+        "pair_id":
+            pair_id,
+
+        "status":
+            "processed",
+
+        "symbol":
+            symbol,
+
+        "net_pnl":
+            net_pnl,
+    }
+
+
 async def process_received_event(
     *,
     event: BrokerSyncEvent,
@@ -2544,6 +2978,25 @@ async def process_received_event(
         result = await process_fill_pair_event(
             event=event,
             device=device,
+        )
+
+        return {
+            "event_type":
+                event_type,
+
+            "broker_event_id":
+                event.broker_event_id,
+
+            "result":
+                result,
+        }
+
+    if event_type == "completed_trade":
+        result = (
+            await process_completed_trade_event(
+                event=event,
+                device=device,
+            )
         )
 
         return {
@@ -2802,13 +3255,12 @@ async def receive_broker_events(
 
 
 class BrokerSessionRequest(BaseModel):
-    broker: Literal["tradovate", "ninjatrader"]
+    broker: Literal["tradingview"]
     page_url: str | None = None
 
 
 BROKER_SESSION_NAMES = {
-    "tradovate": "Tradovate",
-    "ninjatrader": "NinjaTrader Web",
+    "tradingview": "TradingView",
 }
 
 
@@ -2850,7 +3302,9 @@ async def register_broker_session(
 
     if page_url:
         values["account_name"] = (
-            f"{broker_name} Web Session"
+            "TradingView Session"
+            if broker == "tradingview"
+            else f"{broker_name} Web Session"
         )
 
     if existing_accounts:
@@ -2887,7 +3341,11 @@ async def register_broker_session(
         "account_name":
             values.get(
                 "account_name",
-                f"{broker_name} Web Session",
+                (
+                    "TradingView Session"
+                    if broker == "tradingview"
+                    else f"{broker_name} Web Session"
+                ),
             ),
         "environment":
             "live",

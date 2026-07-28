@@ -10,18 +10,10 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const brokerId = searchParams.get("broker");
+const SUPPORTED_BROKER: SupportedBrokerId = "tradingview";
 
-  if (brokerId !== "tradovate" && brokerId !== "ninjatrader") {
-    return NextResponse.json(
-      { error: "Unsupported broker." },
-      { status: 400 },
-    );
-  }
-
-  const broker = getBrokerConnectInfo(brokerId as SupportedBrokerId);
+export async function GET() {
+  const broker = getBrokerConnectInfo(SUPPORTED_BROKER);
   const supabase = await createClient();
 
   const {
@@ -56,7 +48,7 @@ export async function GET(request: Request) {
   const account = data?.[0] ?? null;
 
   return NextResponse.json({
-    broker: brokerId,
+    broker: SUPPORTED_BROKER,
     broker_name: broker.name,
     connected: Boolean(account),
     account,
@@ -75,7 +67,7 @@ export async function POST(request: Request) {
       broker?: string;
     };
 
-    if (body.broker !== "tradovate" && body.broker !== "ninjatrader") {
+    if (body.broker && body.broker !== SUPPORTED_BROKER) {
       return NextResponse.json(
         { error: "Unsupported broker." },
         { status: 400 },
@@ -84,7 +76,7 @@ export async function POST(request: Request) {
 
     const result = await upsertBrokerSession(
       access.user.id,
-      body.broker as SupportedBrokerId,
+      SUPPORTED_BROKER,
     );
 
     return NextResponse.json({

@@ -1285,7 +1285,7 @@ export default function ReportsPage() {
           main:
             "There are no processed trades in the selected report period.",
           strength:
-            "Select a wider period or complete another Tradovate trade.",
+            "Select a wider period or complete another TradingView trade.",
           focus:
             "Once more trades are recorded, this report will compare symbols, directions, fees, and daily results.",
         };
@@ -1586,7 +1586,7 @@ export default function ReportsPage() {
           </h2>
 
           <p className="mt-2 max-w-3xl leading-7 text-slate-400">
-            Review real Tradovate results by period
+            Review synced TradingView results by period
             and account, including net P/L, fees,
             win rate, profit factor, daily
             performance, symbols, and direction.

@@ -24,7 +24,7 @@ type ConnectionPhase =
   | "live";
 
 export default function TradeCoachSyncPairing({
-  brokerId = "tradovate",
+  brokerId = "tradingview",
 }: {
   brokerId?: SupportedBrokerId;
 }) {

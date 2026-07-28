@@ -21,7 +21,7 @@ type BrokerOption = {
 };
 
 const BROKER_OPTIONS: BrokerOption[] = [
-  ...BROKER_CONNECT_OPTIONS.map((broker, index) => ({
+  ...BROKER_CONNECT_OPTIONS.map((broker) => ({
     name: broker.name,
     method: broker.method,
     status: "available" as const,
@@ -29,11 +29,8 @@ const BROKER_OPTIONS: BrokerOption[] = [
     platforms: broker.platforms,
     syncs: broker.syncs,
     href: broker.href,
-    actionLabel:
-      broker.id === "tradovate"
-        ? "Connect Tradovate"
-        : "Connect NinjaTrader Web",
-    primary: index === 0,
+    actionLabel: "Connect TradingView",
+    primary: true,
   })),
   {
     name: "TradeStation",
