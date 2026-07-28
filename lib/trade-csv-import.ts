@@ -2,23 +2,9 @@ import { createHash } from "node:crypto";
 
 import { applyPaperTradingAccountDefaults } from "@/lib/trade-accounts";
 
-export const CSV_IMPORT_BROKER = "csv";
+export { CSV_IMPORT_HEADERS } from "@/lib/trade-csv-import-headers";
 
-export const CSV_IMPORT_HEADERS = [
-  "Date",
-  "Symbol",
-  "Direction",
-  "Quantity",
-  "Entry Price",
-  "Exit Price",
-  "Gross Points",
-  "P/L",
-  "Account",
-  "Broker",
-  "Broker Pair ID",
-  "Buy Fill ID",
-  "Sell Fill ID",
-] as const;
+export const CSV_IMPORT_BROKER = "csv";
 
 export type ParsedCsvTrade = {
   rowNumber: number;

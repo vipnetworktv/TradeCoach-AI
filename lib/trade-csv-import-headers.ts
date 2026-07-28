@@ -1,0 +1,15 @@
+export const CSV_IMPORT_HEADERS = [
+  "Date",
+  "Symbol",
+  "Direction",
+  "Quantity",
+  "Entry Price",
+  "Exit Price",
+  "Gross Points",
+  "P/L",
+  "Account",
+  "Broker",
+  "Broker Pair ID",
+  "Buy Fill ID",
+  "Sell Fill ID",
+] as const;

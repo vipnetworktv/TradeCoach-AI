@@ -7,10 +7,8 @@ import {
   readCsvUploadText,
   type ExistingTradeFingerprint,
 } from "@/lib/trade-csv-import";
-import {
-  ensurePaperTradingBrokerAccount,
-  TRADINGVIEW_PAPER_BROKER,
-} from "@/lib/trade-accounts";
+import { TRADINGVIEW_PAPER_BROKER } from "@/lib/trade-accounts";
+import { ensurePaperTradingBrokerAccountForUser } from "@/lib/ensure-paper-trading-broker-account";
 import { createClient } from "@/lib/supabase/server";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 
@@ -206,7 +204,7 @@ export async function POST(request: Request) {
 
   if (importedPaperTrades) {
     try {
-      await ensurePaperTradingBrokerAccount(db, user.id);
+      await ensurePaperTradingBrokerAccountForUser(user.id);
     } catch (accountError) {
       console.error(
         "[TradeCoach] Could not ensure paper trading account:",

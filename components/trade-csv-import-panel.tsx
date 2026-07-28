@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 
-import { CSV_IMPORT_HEADERS } from "@/lib/trade-csv-import";
+import { CSV_IMPORT_HEADERS } from "@/lib/trade-csv-import-headers";
 
 type ImportResult = {
   inserted?: number;
