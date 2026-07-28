@@ -1,0 +1,64 @@
+---
+description: TradeCoach VPS deploy and recovery commands (DigitalOcean 2GB)
+alwaysApply: true
+---
+
+# VPS deploy (tradecoachai.org)
+
+Server: `/var/www/tradecoach` · PM2 apps: `tradecoach` (Next.js :3000), `tradecoach-api` (FastAPI :8000)
+
+## If site shows 502 right now (emergency)
+
+```bash
+cd /var/www/tradecoach
+git pull
+bash scripts/fix-502.sh
+```
+
+Then hard-refresh browser: **Ctrl+Shift+R** (or try incognito).
+
+## Normal deploy (use this every time)
+
+```bash
+cd /var/www/tradecoach
+git pull
+bash scripts/deploy-vps.sh
+```
+
+Builds first, reloads PM2 (no delete), health-checks port 3000. Uses `npm run build:app` (skips extension zip to save memory).
+
+## Diagnose when something breaks
+
+```bash
+cd /var/www/tradecoach
+bash scripts/diagnose-vps.sh
+pm2 logs tradecoach --lines 50
+pm2 logs tradecoach-api --lines 50
+```
+
+## Fix API only (after ecosystem.config.cjs Python fix)
+
+```bash
+pm2 delete tradecoach-api 2>/dev/null || true
+pm2 start ecosystem.config.cjs --only tradecoach-api
+pm2 save
+```
+
+API must run via `.venv/bin/python -m uvicorn` — not Node on the uvicorn script.
+
+## Do NOT do this (causes 502)
+
+- Do **not** run `pm2 delete tradecoach` before a successful build
+- Do **not** restart PM2 without `npm run build` / `build:app` when code changed
+- Do **not** use `npm run build` on VPS unless extension zip is needed — prefer deploy script
+
+## If build needed manually
+
+```bash
+NODE_OPTIONS=--max-old-space-size=1536 npm run build:app
+pm2 reload tradecoach --update-env
+```
+
+## 502 root cause
+
+nginx is fine — nothing listening on :3000. Usually: deleted PM2 before build finished, incomplete `.next`, or app crash.
