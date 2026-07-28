@@ -9,8 +9,8 @@ import {
   getTradeAccountFeedName,
   getTradeAccountKey,
   getTradeAccountLabel,
-  isTradingViewPaperFeedTrade,
-  isTradingViewPropFeedTrade,
+  isTradeCoachTradingViewFeedTrade,
+  TRADINGVIEW_BROKER_NAME,
   TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID,
 } from "@/lib/trade-accounts";
 import {
@@ -218,25 +218,21 @@ function buildDetectedAccounts(trades: CompletedTrade[]) {
 
   for (const trade of trades) {
     const normalized = normalizeTradeForAccounts(trade);
-    const isPaper = isTradingViewPaperFeedTrade(normalized);
-    const isProp = isTradingViewPropFeedTrade(normalized);
 
-    if (!isPaper && !isProp) {
+    if (!isTradeCoachTradingViewFeedTrade(normalized)) {
       continue;
     }
 
-    const key = isPaper
-      ? TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID
-      : getTradeAccountKey(normalized);
-    const brokerName = getTradeAccountFeedName(normalized);
-    const accountName = getTradeAccountLabel(normalized);
+    const key = TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID;
+    const brokerName = TRADINGVIEW_BROKER_NAME;
+    const accountName = TRADINGVIEW_BROKER_NAME;
 
     const current = accountMap.get(key) || {
       key,
       brokerName,
       accountExternalId: key,
       accountName,
-      isPaper,
+      isPaper: true,
       importedTrades: 0,
       netPnl: 0,
       fees: 0,
@@ -271,16 +267,9 @@ function buildDetectedAccounts(trades: CompletedTrade[]) {
   }
 
   return Array.from(accountMap.values()).sort(
-    (first, second) => {
-      if (first.isPaper !== second.isPaper) {
-        return first.isPaper ? -1 : 1;
-      }
-
-      return (
-        new Date(second.latestTradeAt || 0).getTime() -
-        new Date(first.latestTradeAt || 0).getTime()
-      );
-    },
+    (first, second) =>
+      new Date(second.latestTradeAt || 0).getTime() -
+      new Date(first.latestTradeAt || 0).getTime(),
   );
 }
 
@@ -642,15 +631,9 @@ export default async function AccountsPage() {
 
   const detectedAccounts = buildDetectedAccounts(completedTrades);
 
-  const activeBrokerNames = Array.from(
-    new Set(
-      detectedAccounts.flatMap((account) =>
-        account.isPaper
-          ? ["TradingView Paper"]
-          : [account.accountName],
-      ),
-    ),
-  );
+  const activeBrokerNames = detectedAccounts.length > 0
+    ? ["TradingView"]
+    : [];
 
   const unmatchedDetectedAccounts = detectedAccounts.filter(
     (detected) =>
@@ -659,22 +642,14 @@ export default async function AccountsPage() {
       ),
   );
 
-  const paperDetectedAccounts = unmatchedDetectedAccounts.filter(
-    (account) => account.isPaper,
-  );
-  const propDetectedAccounts = unmatchedDetectedAccounts.filter(
-    (account) => !account.isPaper,
-  );
+  const tradingViewDetectedAccounts = unmatchedDetectedAccounts;
 
   const totalAccountCount =
-    accounts.length +
-    paperDetectedAccounts.length +
-    propDetectedAccounts.length;
+    accounts.length + tradingViewDetectedAccounts.length;
 
   const connectedAccountCount =
     accounts.filter((account) => account.status === "connected").length +
-    paperDetectedAccounts.length +
-    propDetectedAccounts.length;
+    tradingViewDetectedAccounts.length;
 
   const totalNetPnl = tradeStats.totalPnl;
 
@@ -801,17 +776,14 @@ export default async function AccountsPage() {
         </section>
       )}
 
-      {paperDetectedAccounts.length > 0 ||
-      propDetectedAccounts.length > 0 ? (
+      {tradingViewDetectedAccounts.length > 0 ? (
         <section className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-5">
           <h2 className="font-semibold text-cyan-200">
-            TradingView feeds detected
+            TradingView feed detected
           </h2>
 
           <p className="mt-2 text-sm leading-6 text-cyan-100/75">
-            Paper trading and prop-firm accounts connected through TradingView
-            stay separate here. CSV-imported broker accounts remain available on
-            Trades and Reports.
+            Trades synced from TradingView are available on Trades and Reports.
           </p>
         </section>
       ) : null}
@@ -877,8 +849,7 @@ export default async function AccountsPage() {
       </section>
 
       {accounts.length === 0 &&
-      paperDetectedAccounts.length === 0 &&
-      propDetectedAccounts.length === 0 ? (
+      tradingViewDetectedAccounts.length === 0 ? (
         <section className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.035]">
           <div className="grid gap-8 p-7 lg:grid-cols-[1fr_300px] lg:p-10">
             <div>
@@ -930,8 +901,7 @@ export default async function AccountsPage() {
         </section>
       ) : null}
 
-      {paperDetectedAccounts.length > 0 ||
-      propDetectedAccounts.length > 0 ? (
+      {tradingViewDetectedAccounts.length > 0 ? (
         <section>
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">
@@ -943,51 +913,24 @@ export default async function AccountsPage() {
             </h2>
           </div>
 
-          {paperDetectedAccounts.length > 0 ? (
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold text-white">
-                TradingView Paper
-              </h3>
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-white">
+              TradingView
+            </h3>
 
-              <p className="mt-1 text-sm text-slate-400">
-                Simulated paper trades inside TradingView.
-              </p>
+            <p className="mt-1 text-sm text-slate-400">
+              Trades synced from TradingView.
+            </p>
 
-              <div className="mt-5 grid gap-5 xl:grid-cols-2">
-                {paperDetectedAccounts.map((account) => (
-                  <DetectedAccountCard
-                    key={account.key}
-                    account={account}
-                  />
-                ))}
-              </div>
+            <div className="mt-5 grid gap-5 xl:grid-cols-2">
+              {tradingViewDetectedAccounts.map((account) => (
+                <DetectedAccountCard
+                  key={account.key}
+                  account={account}
+                />
+              ))}
             </div>
-          ) : null}
-
-          {propDetectedAccounts.length > 0 ? (
-            <div
-              className={
-                paperDetectedAccounts.length > 0 ? "mt-10" : "mt-8"
-              }
-            >
-              <h3 className="text-lg font-semibold text-white">
-                Prop Firm · via TradingView
-              </h3>
-
-              <p className="mt-1 text-sm text-slate-400">
-                Live prop-firm accounts connected through TradingView.
-              </p>
-
-              <div className="mt-5 grid gap-5 xl:grid-cols-2">
-                {propDetectedAccounts.map((account) => (
-                  <DetectedAccountCard
-                    key={account.key}
-                    account={account}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
+          </div>
         </section>
       ) : null}
 

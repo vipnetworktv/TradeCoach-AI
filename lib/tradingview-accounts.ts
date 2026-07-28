@@ -1,6 +1,6 @@
 export const TRADINGVIEW_BROKER = "tradingview";
 export const TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID = "tv:paper";
-export const TRADINGVIEW_PAPER_ACCOUNT_NAME = "TradingView Paper";
+export const TRADINGVIEW_PAPER_ACCOUNT_NAME = "TradingView";
 export const TRADINGVIEW_BROKER_NAME = "TradingView";
 export const LEGACY_TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID =
   "tradingview-paper";
@@ -150,10 +150,7 @@ export function resolveTradingViewAccountContext(input: {
         paperAccountId === "default"
           ? TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID
           : `${TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID}:${paperAccountId}`,
-      accountName:
-        accountId && accountId !== "default"
-          ? `${TRADINGVIEW_PAPER_ACCOUNT_NAME} · ${accountId}`
-          : TRADINGVIEW_PAPER_ACCOUNT_NAME,
+      accountName: TRADINGVIEW_PAPER_ACCOUNT_NAME,
       isPaper: true,
       connectedBroker: null,
     };
@@ -169,31 +166,9 @@ export function resolveTradingViewAccountContext(input: {
     normalizeSlug(accountName) ||
     "default";
 
-  let label = accountName;
-
-  if (!label && accountId) {
-    label = `TradingView · ${accountId}`;
-  }
-
-  if (!label && connectedBroker) {
-    label = connectedBrokerLabel(connectedBroker);
-
-    if (accountId) {
-      label += ` · ${accountId}`;
-    }
-  }
-
-  if (!label) {
-    label = "TradingView Live";
-  }
-
-  if (!label.toLowerCase().includes("tradingview")) {
-    label += " (TradingView)";
-  }
-
   return {
     accountExternalId: `tv:${slug}:${idPart}`,
-    accountName: label,
+    accountName: TRADINGVIEW_PAPER_ACCOUNT_NAME,
     isPaper: false,
     connectedBroker,
   };

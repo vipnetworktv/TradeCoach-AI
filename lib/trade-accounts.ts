@@ -326,16 +326,11 @@ export function getTradeAccountKey(trade: TradeAccountFields): string {
     "account_id",
     "broker_account_id",
   ]);
-  const connectedBroker = getConnectedBrokerFromTrade(trade);
 
   if (
     broker === TRADINGVIEW_BROKER ||
     accountExternalId?.startsWith("tv:")
   ) {
-    if (!isPaperTradingTrade(trade) && connectedBroker) {
-      return `tv:prop:${connectedBroker}`;
-    }
-
     return TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID;
   }
 
@@ -359,10 +354,11 @@ export function getTradeAccountKey(trade: TradeAccountFields): string {
 export function getTradeAccountLabelFromKey(
   accountKey: string,
 ) {
-  if (accountKey.startsWith("tv:prop:")) {
-    const brokerSlug = accountKey.slice("tv:prop:".length).split(":")[0];
-
-    return `${formatConnectedBrokerName(brokerSlug)} · via TradingView`;
+  if (
+    accountKey.startsWith("tv:prop:") ||
+    accountKey.startsWith("tv:")
+  ) {
+    return TRADINGVIEW_BROKER_NAME;
   }
 
   if (
@@ -381,20 +377,18 @@ export function getTradeAccountLabelFromKey(
 export function getTradeAccountFeedName(
   trade: TradeAccountFields,
 ) {
-  if (isPaperTradingTrade(trade)) {
+  if (isTradeCoachTradingViewFeedTrade(trade)) {
     return TRADINGVIEW_BROKER_NAME;
   }
 
-  const connectedBroker = getConnectedBrokerFromTrade(trade);
-
-  if (connectedBroker) {
-    return formatConnectedBrokerName(connectedBroker);
-  }
-
-  return formatBrokerRecordName(trade.broker) || "TradingView";
+  return formatBrokerRecordName(trade.broker) || "Unknown";
 }
 
 export function getTradeAccountLabel(trade: TradeAccountFields): string {
+  if (isTradeCoachTradingViewFeedTrade(trade)) {
+    return TRADINGVIEW_BROKER_NAME;
+  }
+
   const key = getTradeAccountKey(trade);
   const labelFromKey = getTradeAccountLabelFromKey(key);
 

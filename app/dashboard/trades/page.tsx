@@ -12,8 +12,6 @@ import {
   buildTradeAccountOptions,
   getTradeAccountKey,
   getTradeAccountLabel,
-  isPaperTradingTrade,
-  isTradingViewPropFeedTrade,
   STATS_ACCOUNT_FILTER_STORAGE_KEY,
 } from "@/lib/trade-accounts";
 import {
@@ -991,35 +989,15 @@ export default function TradesPage() {
     );
 
   function renderAccountBadge(trade: BrokerCompletedTrade) {
-    const isPaper = isPaperTradingTrade(trade);
-    const isProp = isTradingViewPropFeedTrade(trade);
-
     return (
-      <span className="inline-flex flex-wrap items-center gap-2">
-        <span className="whitespace-nowrap text-sm text-slate-200">
-          {getTradeAccountLabel(trade)}
-        </span>
-
-        {isPaper ? (
-          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-            Paper
-          </span>
-        ) : null}
-
-        {isProp ? (
-          <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
-            Prop
-          </span>
-        ) : null}
+      <span className="whitespace-nowrap text-sm text-slate-200">
+        {getTradeAccountLabel(trade)}
       </span>
     );
   }
 
-  const paperAccountOptions = accountOptions.filter(
-    (account) => account.isPaper,
-  );
-  const propAccountOptions = accountOptions.filter(
-    (account) => account.isProp,
+  const tradingViewAccountOptions = accountOptions.filter(
+    (account) => account.isPaper || account.isProp,
   );
   const otherAccountOptions = accountOptions.filter(
     (account) => !account.isPaper && !account.isProp,
@@ -1218,14 +1196,14 @@ export default function TradesPage() {
             </div>
           </div>
 
-          {paperAccountOptions.length > 0 ? (
+          {tradingViewAccountOptions.length > 0 ? (
             <div className="mt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
-                TradingView Paper
+              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                TradingView
               </p>
 
               <div className="mt-2 flex flex-wrap gap-2">
-                {paperAccountOptions.map((account) => {
+                {tradingViewAccountOptions.map((account) => {
                   const checked = statsAccountKeys.has(account.key);
 
                   return (
@@ -1245,48 +1223,6 @@ export default function TradesPage() {
                       />
 
                       <span>{account.label}</span>
-
-                      <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-                        Paper
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-
-          {propAccountOptions.length > 0 ? (
-            <div className="mt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">
-                Prop Firm · via TradingView
-              </p>
-
-              <div className="mt-2 flex flex-wrap gap-2">
-                {propAccountOptions.map((account) => {
-                  const checked = statsAccountKeys.has(account.key);
-
-                  return (
-                    <label
-                      key={account.key}
-                      className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
-                        checked
-                          ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-100"
-                          : "border-slate-700 bg-slate-950 text-slate-400"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleStatsAccount(account.key)}
-                        className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-cyan-400 focus:ring-cyan-400"
-                      />
-
-                      <span>{account.label}</span>
-
-                      <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
-                        Prop
-                      </span>
                     </label>
                   );
                 })}
@@ -1387,11 +1323,6 @@ export default function TradesPage() {
                     }
                   >
                     {account.label}
-                    {account.isPaper
-                      ? " · Paper"
-                      : account.isProp
-                        ? " · Prop"
-                        : ""}
                   </option>
                 ),
               )}
