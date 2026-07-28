@@ -27,8 +27,8 @@ fi
 
 echo
 echo "==> Port checks"
-curl -sI "http://127.0.0.1:${APP_PORT}/" | head -n 1 || echo "Next.js not responding on :${APP_PORT}"
-curl -sI "http://127.0.0.1:8000/health" | head -n 1 || echo "API not responding on :8000/health"
+curl -s -o /dev/null -w "Next.js :${APP_PORT} → HTTP %{http_code}\n" "http://127.0.0.1:${APP_PORT}/" || echo "Next.js not responding on :${APP_PORT}"
+curl -s -o /dev/null -w "API :8000/health → HTTP %{http_code}\n" "http://127.0.0.1:8000/health" || echo "API not responding on :8000/health"
 
 echo
 echo "If Next.js is down but BUILD_ID exists, try:"
