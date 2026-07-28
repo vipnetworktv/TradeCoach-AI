@@ -105,6 +105,7 @@ export function resolveTradingViewAccountContext(input: {
   const accountName = String(input.accountName || "").trim();
   const brokerName = String(input.brokerName || "").trim();
   const accountType = String(input.accountType || "").trim();
+  const accountTypeNormalized = accountType.toLowerCase();
   const haystack = [accountName, brokerName, accountType]
     .filter(Boolean)
     .join(" ")
@@ -121,24 +122,22 @@ export function resolveTradingViewAccountContext(input: {
     input.isPaper === "true" ||
     input.isPaper === 1;
 
-  const accountType = String(input.accountType || "").trim().toLowerCase();
-
   const inferredPaper =
     explicitPaper ||
-    accountType === "demo" ||
-    accountType === "paper" ||
-    accountType === "simulation" ||
+    accountTypeNormalized === "demo" ||
+    accountTypeNormalized === "paper" ||
+    accountTypeNormalized === "simulation" ||
     haystack.includes("paper") ||
     haystack.includes("demo") ||
     haystack.includes("simulation") ||
     haystack.includes("simulated");
 
   const inferredLive =
-    (accountType === "live" || haystack.includes("live")) &&
-    accountType !== "demo";
+    (accountTypeNormalized === "live" || haystack.includes("live")) &&
+    accountTypeNormalized !== "demo";
 
   const isPaper =
-    accountType === "demo" ||
+    accountTypeNormalized === "demo" ||
     (inferredPaper && !inferredLive);
 
   if (isPaper) {
