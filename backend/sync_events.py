@@ -3219,6 +3219,20 @@ async def receive_broker_events(
         len(records) - inserted_count,
     )
 
+    response_message = (
+        f"Saved {inserted_count} new event"
+        f"{'' if inserted_count == 1 else 's'} "
+        "and processed "
+        f"{len(processing_results)} event"
+        f"{'' if len(processing_results) == 1 else 's'}."
+    )
+
+    if processing_errors:
+        response_message = (
+            f"{response_message} "
+            f"First error: {processing_errors[0]['error']}"
+        )
+
     return {
         "success":
             len(processing_errors) == 0,
@@ -3244,13 +3258,7 @@ async def receive_broker_events(
         "processing_errors":
             processing_errors,
 
-        "message": (
-            f"Saved {inserted_count} new event"
-            f"{'' if inserted_count == 1 else 's'} "
-            "and processed "
-            f"{len(processing_results)} event"
-            f"{'' if len(processing_results) == 1 else 's'}."
-        ),
+        "message": response_message,
     }
 
 

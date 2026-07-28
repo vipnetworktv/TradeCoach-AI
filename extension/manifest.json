@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TradeCoach Sync",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Automatically sync TradingView trades with TradeCoach AI.",
   "permissions": ["tabs", "alarms", "scripting", "storage"],
   "host_permissions": [

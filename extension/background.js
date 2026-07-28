@@ -252,12 +252,6 @@ function getApiErrorMessage(
   }
 
   if (
-    typeof data?.message === "string"
-  ) {
-    return humanizeSyncError(data.message);
-  }
-
-  if (
     Array.isArray(
       data?.processing_errors,
     ) &&
@@ -274,6 +268,12 @@ function getApiErrorMessage(
     return (
       humanizeSyncError(summary) || fallback
     );
+  }
+
+  if (
+    typeof data?.message === "string"
+  ) {
+    return humanizeSyncError(data.message);
   }
 
   return fallback;
