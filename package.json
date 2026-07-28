@@ -13,6 +13,8 @@
     "deploy:vps": "bash scripts/deploy-vps.sh",
     "diagnose:vps": "bash scripts/diagnose-vps.sh",
     "fix:502": "bash scripts/fix-502.sh",
+    "diagnose:nginx": "bash scripts/diagnose-nginx.sh",
+    "install:nginx": "bash scripts/install-nginx.sh",
     "start": "next start",
     "lint": "eslint",
     "package:extension": "node scripts/package-extension.mjs",

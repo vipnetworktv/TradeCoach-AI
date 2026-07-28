@@ -7,7 +7,16 @@ alwaysApply: true
 
 Server: `/var/www/tradecoach` · PM2 apps: `tradecoach` (Next.js :3000), `tradecoach-api` (FastAPI :8000)
 
-## If site shows 502 right now (emergency)
+## If site shows 502 but curl 127.0.0.1:3000 returns 200 (nginx issue)
+
+```bash
+cd /var/www/tradecoach
+git pull
+bash scripts/diagnose-nginx.sh
+bash scripts/install-nginx.sh
+```
+
+nginx must use `proxy_pass http://127.0.0.1:3000` — **not** `localhost:3000` (IPv6 ::1 breaks).
 
 ```bash
 cd /var/www/tradecoach
