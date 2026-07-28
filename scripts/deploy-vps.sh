@@ -45,6 +45,11 @@ fi
 echo "==> Building Next.js app (webpack — avoids Turbopack VPS hangs)"
 NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1536}" npm run build
 
+if [ ! -f .next/BUILD_ID ]; then
+  echo "Build failed: .next/BUILD_ID missing. Not restarting PM2."
+  exit 1
+fi
+
 echo "==> Restarting PM2 processes"
 pm2 delete tradecoach 2>/dev/null || true
 pm2 delete tradecoach-api 2>/dev/null || true

@@ -6,13 +6,12 @@ import {
   BROKER_CONNECT_OPTIONS,
 } from "@/lib/brokers";
 import {
-  getTradeAccountFeedName,
-  getTradeAccountKey,
-  getTradeAccountLabel,
   isTradeCoachTradingViewFeedTrade,
-  TRADINGVIEW_BROKER_NAME,
   TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID,
 } from "@/lib/trade-accounts";
+import {
+  TRADINGVIEW_BROKER_NAME,
+} from "@/lib/tradingview-accounts";
 import {
   getTradeDisplayPnl,
   getTradeOutcomeStats,
