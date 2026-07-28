@@ -9,6 +9,9 @@ import { requireActiveSubscription } from "@/lib/require-active-subscription";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
+
+const OPENAI_TIMEOUT_MS = 90_000;
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -431,8 +434,8 @@ END TRADECOACH BROKER DATA
 `.trim();
 
   try {
-    const response =
-      await openai.responses.create({
+    const response = await Promise.race([
+      openai.responses.create({
         model:
           process.env.OPENAI_MODEL ||
           "gpt-5.6-terra",
@@ -448,7 +451,17 @@ END TRADECOACH BROKER DATA
         max_output_tokens: 1_500,
 
         store: false,
-      });
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(
+            new Error(
+              "AI Coach timed out while waiting for OpenAI. Please try again.",
+            ),
+          );
+        }, OPENAI_TIMEOUT_MS);
+      }),
+    ]);
 
     const reply =
       response.output_text?.trim();

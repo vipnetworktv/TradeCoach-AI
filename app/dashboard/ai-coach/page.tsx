@@ -2956,39 +2956,50 @@ export default function AICoachPage() {
 
     setChatInput("");
 
-    if (!voiceSession.isLive) {
-      setChatLoading(true);
-    }
+    setChatLoading(true);
 
     requestAnimationFrame(() => {
       forceChatToBottom("auto");
     });
 
-    await saveCoachMessage(
-      activeUserId,
-      activeConversationId,
-      "user",
-      question,
-    );
+    try {
+      void saveCoachMessage(
+        activeUserId,
+        activeConversationId,
+        "user",
+        question,
+      );
 
-    if (voiceSession.isLive) {
-      requestAnimationFrame(() => {
-        forceChatToBottom("auto");
-      });
+      if (voiceSession.isLive) {
+        const sent =
+          await voiceSession.sendTextMessage(question);
 
-      const sent =
-        await voiceSession.sendTextMessage(question);
+        if (!sent) {
+          throw new Error(
+            "Voice coach could not send your message. Try again or turn off voice mode.",
+          );
+        }
 
-      if (!sent) {
-        setChatLoading(false);
+        requestAnimationFrame(() => {
+          forceChatToBottom("auto");
+        });
+
+        return;
       }
 
-      return;
-    }
+      const controller =
+        new AbortController();
+      const timeoutId = window.setTimeout(
+        () => {
+          controller.abort();
+        },
+        90_000,
+      );
 
-    try {
-      const response =
-        await fetch(
+      let response: Response;
+
+      try {
+        response = await fetch(
           "/api/ai-coach/chat",
           {
             method: "POST",
@@ -3006,8 +3017,13 @@ export default function AICoachPage() {
 
               tradingContext,
             }),
+
+            signal: controller.signal,
           },
         );
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
 
       const data =
         (await response.json()) as {
@@ -3041,7 +3057,7 @@ export default function AICoachPage() {
         ],
       );
 
-      await saveCoachMessage(
+      void saveCoachMessage(
         activeUserId,
         activeConversationId,
         "assistant",
@@ -3057,7 +3073,11 @@ export default function AICoachPage() {
         error,
       );
 
-      const errorText = normalizeOpenAiError(error).message;
+      const errorText =
+        error instanceof DOMException &&
+        error.name === "AbortError"
+          ? "AI Coach timed out after 90 seconds. Please try again."
+          : normalizeOpenAiError(error).message;
 
       const localFallback =
         answerCoachQuestion(
@@ -3078,7 +3098,7 @@ export default function AICoachPage() {
         ],
       );
 
-      await saveCoachMessage(
+      void saveCoachMessage(
         activeUserId,
         activeConversationId,
         "assistant",
