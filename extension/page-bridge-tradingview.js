@@ -438,8 +438,8 @@
             : `tv:paper:${paperAccountId}`,
         accountName:
           accountId && accountId !== "default"
-            ? `TradingView Paper · ${accountId}`
-            : "TradingView Paper",
+            ? `TradingView · ${accountId}`
+            : "TradingView",
         isPaper: true,
         connectedBroker: null,
       };
@@ -535,8 +535,8 @@
       return {
         accountExternalId: `tv:paper:${normalizeSlug(accountId)}`,
         accountName: accountName
-          ? `TradingView Paper · ${accountName}`
-          : `TradingView Paper · ${accountId}`,
+          ? `TradingView · ${accountName}`
+          : `TradingView · ${accountId}`,
         isPaper: true,
         connectedBroker: null,
       };
@@ -639,7 +639,7 @@
       accountExternalId === "tv:paper" ||
       accountExternalId.endsWith(":default") ||
       context.accountName === "TradingView Live" ||
-      context.accountName === "TradingView Paper"
+      context.accountName === "TradingView"
     );
   }
 
@@ -1613,7 +1613,7 @@
           accountExternalId: `tv:paper:${normalizeSlug(accountId)}`,
           accountName: liveContext.accountName.includes("Paper")
             ? liveContext.accountName
-            : `TradingView Paper · ${accountId}`,
+            : `TradingView · ${accountId}`,
           isPaper: true,
           connectedBroker: null,
         };
