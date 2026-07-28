@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TradeCoach Sync",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Automatically sync TradingView trades with TradeCoach AI.",
   "permissions": ["tabs", "alarms", "scripting", "storage"],
   "host_permissions": [
@@ -9,9 +9,11 @@
     "https://*.tradingview.com/*",
     "https://tradecoachai.org/*",
     "https://www.tradecoachai.org/*",
+    "https://api.tradecoachai.org/*",
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*",
-    "http://localhost:8000/*"
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
   ],
   "background": {
     "service_worker": "background.js"
