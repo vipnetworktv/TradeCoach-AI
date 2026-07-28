@@ -65,7 +65,11 @@ pm2_start_or_reload() {
 
   if pm2 describe "$process_name" >/dev/null 2>&1; then
     echo "==> Reloading ${process_name}"
-    pm2 reload "$process_name" --update-env
+    if ! pm2 reload "$process_name" --update-env; then
+      echo "==> Reload failed for ${process_name} — starting fresh"
+      pm2 delete "$process_name" 2>/dev/null || true
+      pm2 start ecosystem.config.cjs --only "$only_target"
+    fi
   else
     echo "==> Starting ${process_name}"
     pm2 start ecosystem.config.cjs --only "$only_target"
@@ -84,8 +88,8 @@ if ! npm run build:app; then
   exit 1
 fi
 
-if [ ! -f .next/BUILD_ID ]; then
-  echo "Build failed: .next/BUILD_ID missing. PM2 was NOT restarted."
+if [ ! -f .next/BUILD_ID ] || [ ! -f .next/prerender-manifest.json ]; then
+  echo "Build failed: incomplete .next output. PM2 was NOT restarted."
   exit 1
 fi
 

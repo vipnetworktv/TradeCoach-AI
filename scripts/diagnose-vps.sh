@@ -19,16 +19,16 @@ pm2 logs tradecoach-api --lines 20 --nostream || true
 
 echo
 echo "==> Build artifact check"
-if [ -f .next/BUILD_ID ]; then
-  echo "OK: .next/BUILD_ID exists ($(cat .next/BUILD_ID))"
+if [ -f .next/BUILD_ID ] && [ -f .next/prerender-manifest.json ]; then
+  echo "OK: production build exists ($(cat .next/BUILD_ID))"
 else
-  echo "MISSING: .next/BUILD_ID — you need npm run build:app"
+  echo "MISSING: incomplete .next build — run: bash scripts/deploy-vps.sh"
 fi
 
 echo
 echo "==> Port checks"
 curl -sI "http://127.0.0.1:${APP_PORT}/" | head -n 1 || echo "Next.js not responding on :${APP_PORT}"
-curl -sI "http://127.0.0.1:8000/" | head -n 1 || echo "API not responding on :8000"
+curl -sI "http://127.0.0.1:8000/health" | head -n 1 || echo "API not responding on :8000/health"
 
 echo
 echo "If Next.js is down but BUILD_ID exists, try:"

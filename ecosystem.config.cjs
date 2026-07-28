@@ -16,8 +16,9 @@ module.exports = {
     {
       name: "tradecoach-api",
       cwd: "/var/www/tradecoach/backend",
-      script: ".venv/bin/uvicorn",
-      args: "main:app --host 127.0.0.1 --port 8000",
+      script: ".venv/bin/python",
+      args: "-m uvicorn main:app --host 127.0.0.1 --port 8000",
+      interpreter: "none",
       env: {
         NODE_ENV: "production",
       },
