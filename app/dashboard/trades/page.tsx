@@ -1470,8 +1470,7 @@ export default function TradesPage() {
         </div>
       </div>
 
-      <div className="mt-8 overflow-x-auto rounded-3xl border border-slate-800 bg-slate-900/60">
-        <div className="min-w-[1680px]">
+      <div className="mt-8 rounded-3xl border border-slate-800 bg-slate-900/60">
         <div className="flex flex-col gap-3 border-b border-slate-800 px-4 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-6">
           <div>
             <h3 className="text-xl font-bold">
@@ -1508,19 +1507,8 @@ export default function TradesPage() {
           </div>
         </div>
 
-          <table className="w-full table-fixed">
-            <colgroup>
-              <col className="w-[118px]" />
-              <col className="w-[108px]" />
-              <col className="w-[84px]" />
-              <col className="w-[64px]" />
-              <col className="w-[96px]" />
-              <col className="w-[96px]" />
-              <col className="w-[96px]" />
-              <col className="w-[190px]" />
-              <col />
-              <col className="w-[96px]" />
-            </colgroup>
+        <div className="overflow-x-auto">
+          <table className="w-max min-w-full border-collapse">
             <thead>
               <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wider text-slate-500">
                 <th className="whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
@@ -1559,7 +1547,7 @@ export default function TradesPage() {
                   Pair ID
                 </th>
 
-                <th className="whitespace-nowrap px-3 py-3 font-semibold lg:px-4">
+                <th className="whitespace-nowrap px-3 py-3 text-left font-semibold lg:px-4">
                   Actions
                 </th>
               </tr>
@@ -1762,6 +1750,7 @@ export default function TradesPage() {
                 : null}
             </tbody>
           </table>
+        </div>
 
         <div className="flex flex-col gap-4 border-t border-slate-800 px-4 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-6">
           <p className="text-sm text-slate-500">
@@ -1815,7 +1804,6 @@ export default function TradesPage() {
               Next
             </button>
           </div>
-        </div>
         </div>
       </div>
     </>

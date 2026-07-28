@@ -182,7 +182,7 @@ export default async function DashboardLayout({
           </div>
 
           <section className="flex-1 px-6 py-8 md:px-8">
-            <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+            <div className="mx-auto max-w-7xl">{children}</div>
           </section>
         </div>
       </div>
