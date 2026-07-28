@@ -7,7 +7,9 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "npm run package:extension && next build",
+    "build": "npm run package:extension && next build --webpack",
+    "build:app": "next build --webpack",
+    "build:turbopack": "npm run package:extension && next build",
     "start": "next start",
     "lint": "eslint",
     "package:extension": "node scripts/package-extension.mjs",

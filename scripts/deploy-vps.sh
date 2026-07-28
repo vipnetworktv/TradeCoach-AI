@@ -42,8 +42,8 @@ else
   npm install
 fi
 
-echo "==> Building Next.js app"
-npm run build
+echo "==> Building Next.js app (webpack — avoids Turbopack VPS hangs)"
+NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1536}" npm run build
 
 echo "==> Restarting PM2 processes"
 pm2 delete tradecoach 2>/dev/null || true
