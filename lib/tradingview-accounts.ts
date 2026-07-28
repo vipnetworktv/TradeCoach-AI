@@ -209,6 +209,7 @@ export function isLegacyTradingViewPaperAccountId(
 
   return (
     normalized === LEGACY_TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID ||
-    normalized === TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID
+    normalized === TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID ||
+    normalized.startsWith(`${TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID}:`)
   );
 }

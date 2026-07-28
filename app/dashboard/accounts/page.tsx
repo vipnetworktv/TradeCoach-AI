@@ -4,8 +4,13 @@ import { redirect } from "next/navigation";
 
 import {
   BROKER_CONNECT_OPTIONS,
-  formatBrokerRecordName,
 } from "@/lib/brokers";
+import {
+  getTradeAccountFeedName,
+  getTradeAccountLabel,
+  isTradingViewPaperFeedTrade,
+  TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID,
+} from "@/lib/trade-accounts";
 import {
   getTradeDisplayPnl,
   getTradeOutcomeStats,
@@ -60,6 +65,7 @@ type DetectedAccount = {
   brokerName: string;
   accountExternalId: string;
   accountName: string;
+  isPaper: boolean;
   importedTrades: number;
   netPnl: number;
   fees: number;
@@ -139,73 +145,64 @@ function getTradeTimestamp(trade: CompletedTrade) {
   );
 }
 
-function inferBrokerName(trade: CompletedTrade) {
-  const broker = pickString(trade, [
-    "broker_name",
-    "broker",
-    "provider",
-    "source_broker",
-    "source_platform",
-  ]);
-
-  return formatBrokerRecordName(broker) || "Unknown Broker";
-}
-
-function getTradeAccountExternalId(
-  trade: CompletedTrade,
-  brokerName: string,
-) {
-  return (
-    pickString(trade, [
+function normalizeTradeForAccounts(trade: CompletedTrade) {
+  return {
+    broker:
+      pickString(trade, [
+        "broker",
+        "broker_name",
+        "provider",
+        "source_broker",
+        "source_platform",
+      ]) || null,
+    account_external_id: pickString(trade, [
       "account_external_id",
       "broker_account_external_id",
+    ]),
+    broker_account_external_id: pickString(trade, [
+      "broker_account_external_id",
+    ]),
+    account_id: pickString(trade, [
       "account_id",
       "broker_account_id",
-    ]) || `${normalizeKey(brokerName)}-detected`
-  );
-}
-
-function getTradeAccountName(
-  trade: CompletedTrade,
-  brokerName: string,
-  accountExternalId: string,
-) {
-  return (
-    pickString(trade, [
+    ]),
+    broker_account_id: pickString(trade, ["broker_account_id"]),
+    account_name: pickString(trade, [
       "account_name",
       "broker_account_name",
       "account_label",
-    ]) ||
-    (accountExternalId.endsWith("-detected")
-      ? `${brokerName} Imported Account`
-      : accountExternalId)
-  );
+    ]),
+    broker_account_name: pickString(trade, ["broker_account_name"]),
+    account_label: pickString(trade, ["account_label"]),
+    raw_payload: trade.raw_payload,
+  };
 }
 
 function buildDetectedAccounts(trades: CompletedTrade[]) {
   const accountMap = new Map<string, DetectedAccount>();
 
   for (const trade of trades) {
-    const brokerName = inferBrokerName(trade);
-    const accountExternalId = getTradeAccountExternalId(
-      trade,
-      brokerName,
-    );
-    const accountName = getTradeAccountName(
-      trade,
-      brokerName,
-      accountExternalId,
-    );
+    const normalized = normalizeTradeForAccounts(trade);
 
-    const key = `${normalizeKey(brokerName)}::${normalizeKey(
-      accountExternalId,
-    )}`;
+    if (!isTradingViewPaperFeedTrade(normalized)) {
+      continue;
+    }
+
+    const key = TRADINGVIEW_PAPER_ACCOUNT_EXTERNAL_ID;
+    const brokerName = getTradeAccountFeedName(normalized);
+    const accountName = getTradeAccountLabel({
+      ...normalized,
+      account_external_id: key,
+      broker: "tradingview",
+    });
+    const isPaper = true;
 
     const current = accountMap.get(key) || {
       key,
       brokerName,
-      accountExternalId,
+      accountExternalId: key,
       accountName,
+      isPaper,
       importedTrades: 0,
       netPnl: 0,
       fees: 0,
@@ -240,9 +237,16 @@ function buildDetectedAccounts(trades: CompletedTrade[]) {
   }
 
   return Array.from(accountMap.values()).sort(
-    (first, second) =>
-      new Date(second.latestTradeAt || 0).getTime() -
-      new Date(first.latestTradeAt || 0).getTime(),
+    (first, second) => {
+      if (first.isPaper !== second.isPaper) {
+        return first.isPaper ? -1 : 1;
+      }
+
+      return (
+        new Date(second.latestTradeAt || 0).getTime() -
+        new Date(first.latestTradeAt || 0).getTime()
+      );
+    },
   );
 }
 
@@ -374,9 +378,18 @@ function accountMatchesDetectedTrade(
   account: BrokerAccount,
   detected: DetectedAccount,
 ) {
-  if (
-    normalizeKey(account.broker_name) !== normalizeKey(detected.brokerName)
-  ) {
+  const accountBroker = normalizeKey(account.broker_name);
+  const detectedBroker = normalizeKey(detected.brokerName);
+
+  const brokerMatches =
+    accountBroker === detectedBroker ||
+    (detected.isPaper &&
+      (accountBroker === "tradingview" ||
+        accountBroker === "tradingview-paper")) ||
+    (detected.brokerName.toLowerCase().includes("tradingview") &&
+      accountBroker.includes("tradingview"));
+
+  if (!brokerMatches) {
     return false;
   }
 
@@ -390,7 +403,12 @@ function accountMatchesDetectedTrade(
   const detectedCandidates = [
     detected.accountExternalId,
     detected.accountName,
+    detected.key,
   ].map(normalizeKey);
+
+  if (detected.isPaper && account.environment === "demo") {
+    return true;
+  }
 
   return candidates.some((candidate) =>
     detectedCandidates.some(
@@ -398,6 +416,97 @@ function accountMatchesDetectedTrade(
         candidate.includes(detectedCandidate) ||
         detectedCandidate.includes(candidate),
     ),
+  );
+}
+
+function DetectedAccountCard({
+  account,
+}: {
+  account: DetectedAccount;
+}) {
+  return (
+    <article
+      key={account.key}
+      className="rounded-3xl border border-cyan-400/20 bg-cyan-400/[0.035] p-6"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">
+            {account.brokerName}
+          </p>
+
+          <h3 className="mt-2 text-xl font-semibold text-white">
+            {account.accountName}
+          </h3>
+        </div>
+
+        <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+          Trade feed active
+        </span>
+      </div>
+
+      <div className="mt-7 grid grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+            Imported Trades
+          </p>
+
+          <p className="mt-2 text-lg font-semibold text-white">
+            {account.importedTrades}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+            Net P/L
+          </p>
+
+          <p
+            className={`mt-2 text-lg font-semibold ${getMoneyClass(
+              account.netPnl,
+            )}`}
+          >
+            {formatSignedCurrency(account.netPnl)}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+            Fees
+          </p>
+
+          <p className="mt-2 text-lg font-semibold text-rose-300">
+            -{formatCurrency(account.fees)}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+            Latest Trade
+          </p>
+
+          <p className="mt-2 text-sm font-semibold leading-6 text-white">
+            {formatDate(account.latestTradeAt)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row">
+        <Link
+          href="/dashboard/trades"
+          className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-cyan-300 hover:text-cyan-300"
+        >
+          View Trades
+        </Link>
+
+        <Link
+          href="/dashboard/reports"
+          className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-cyan-300 hover:text-cyan-300"
+        >
+          View Reports
+        </Link>
+      </div>
+    </article>
   );
 }
 
@@ -489,9 +598,9 @@ export default async function AccountsPage() {
 
   const detectedAccounts = buildDetectedAccounts(completedTrades);
 
-  const activeBrokerNames = Array.from(
-    new Set(detectedAccounts.map((account) => account.brokerName)),
-  ).sort();
+  const activeBrokerNames = detectedAccounts.some((account) => account.isPaper)
+    ? ["TradingView Paper"]
+    : [];
 
   const unmatchedDetectedAccounts = detectedAccounts.filter(
     (detected) =>
@@ -500,12 +609,14 @@ export default async function AccountsPage() {
       ),
   );
 
+  const paperDetectedAccounts = unmatchedDetectedAccounts;
+
   const totalAccountCount =
-    accounts.length + unmatchedDetectedAccounts.length;
+    accounts.length + paperDetectedAccounts.length;
 
   const connectedAccountCount =
     accounts.filter((account) => account.status === "connected").length +
-    unmatchedDetectedAccounts.length;
+    paperDetectedAccounts.length;
 
   const totalNetPnl = tradeStats.totalPnl;
 
@@ -632,17 +743,16 @@ export default async function AccountsPage() {
         </section>
       )}
 
-      {unmatchedDetectedAccounts.length > 0 ? (
+      {paperDetectedAccounts.length > 0 ? (
         <section className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-5">
           <h2 className="font-semibold text-cyan-200">
-            Trade feed detected
+            TradingView paper feed detected
           </h2>
 
           <p className="mt-2 text-sm leading-6 text-cyan-100/75">
-            TradeCoach found {unmatchedDetectedAccounts.length} broker account
-            {unmatchedDetectedAccounts.length === 1 ? "" : "s"} from imported
-            trades even though no matching row exists yet in broker_accounts.
-            These accounts are shown below as detected connections.
+            TradeCoach is syncing your TradingView paper trades automatically.
+            Prop firm and CSV-imported broker accounts stay available on Trades
+            and Reports, but are not listed here.
           </p>
         </section>
       ) : null}
@@ -707,7 +817,7 @@ export default async function AccountsPage() {
         </div>
       </section>
 
-      {accounts.length === 0 && unmatchedDetectedAccounts.length === 0 ? (
+      {accounts.length === 0 && paperDetectedAccounts.length === 0 ? (
         <section className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.035]">
           <div className="grid gap-8 p-7 lg:grid-cols-[1fr_300px] lg:p-10">
             <div>
@@ -759,7 +869,7 @@ export default async function AccountsPage() {
         </section>
       ) : null}
 
-      {unmatchedDetectedAccounts.length > 0 ? (
+      {paperDetectedAccounts.length > 0 ? (
         <section>
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">
@@ -771,95 +881,23 @@ export default async function AccountsPage() {
             </h2>
           </div>
 
-          <div className="mt-5 grid gap-5 xl:grid-cols-2">
-            {unmatchedDetectedAccounts.map((account) => (
-              <article
-                key={account.key}
-                className="rounded-3xl border border-cyan-400/20 bg-cyan-400/[0.035] p-6"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium uppercase tracking-[0.2em] text-cyan-300">
-                      {account.brokerName}
-                    </p>
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-white">
+              Paper Trading
+            </h3>
 
-                    <h3 className="mt-2 text-xl font-semibold text-white">
-                      {account.accountName}
-                    </h3>
+            <p className="mt-1 text-sm text-slate-400">
+              Simulated TradingView paper account trades.
+            </p>
 
-                    <p className="mt-1 font-mono text-xs text-slate-500">
-                      {account.accountExternalId}
-                    </p>
-                  </div>
-
-                  <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-                    Trade feed active
-                  </span>
-                </div>
-
-                <div className="mt-7 grid grid-cols-2 gap-4">
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                      Imported Trades
-                    </p>
-
-                    <p className="mt-2 text-lg font-semibold text-white">
-                      {account.importedTrades}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                      Net P/L
-                    </p>
-
-                    <p
-                      className={`mt-2 text-lg font-semibold ${getMoneyClass(
-                        account.netPnl,
-                      )}`}
-                    >
-                      {formatSignedCurrency(account.netPnl)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                      Fees
-                    </p>
-
-                    <p className="mt-2 text-lg font-semibold text-rose-300">
-                      -{formatCurrency(account.fees)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                      Latest Trade
-                    </p>
-
-                    <p className="mt-2 text-sm font-semibold leading-6 text-white">
-                      {formatDate(account.latestTradeAt)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row">
-                  <Link
-                    href="/dashboard/trades"
-                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-cyan-300 hover:text-cyan-300"
-                  >
-                    View Trades
-                  </Link>
-
-                  <Link
-                    href="/dashboard/reports"
-                    className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-cyan-300 hover:text-cyan-300"
-                  >
-                    View Reports
-                  </Link>
-                </div>
-              </article>
-            ))}
+            <div className="mt-5 grid gap-5 xl:grid-cols-2">
+              {paperDetectedAccounts.map((account) => (
+                <DetectedAccountCard
+                  key={account.key}
+                  account={account}
+                />
+              ))}
+            </div>
           </div>
         </section>
       ) : null}
