@@ -61,7 +61,7 @@ export default async function Home({ searchParams }: HomeProps) {
         isAuthenticated={Boolean(user)}
         hasSubscriptionAccess={hasAccess}
       />
-      <Hero />
+      <Hero isAuthenticated={Boolean(user)} />
       <HomeCoachAvatars />
       <Features />
       <HowItWorks />

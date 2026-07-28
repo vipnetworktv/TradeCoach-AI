@@ -10,6 +10,8 @@
     "build": "npm run package:extension && next build --webpack",
     "build:app": "next build --webpack",
     "build:turbopack": "npm run package:extension && next build",
+    "deploy:vps": "bash scripts/deploy-vps.sh",
+    "diagnose:vps": "bash scripts/diagnose-vps.sh",
     "start": "next start",
     "lint": "eslint",
     "package:extension": "node scripts/package-extension.mjs",

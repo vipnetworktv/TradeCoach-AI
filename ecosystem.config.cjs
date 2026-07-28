@@ -8,6 +8,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: "3000",
+        NODE_OPTIONS: "--max-old-space-size=1024",
       },
       max_restarts: 10,
       restart_delay: 5000,
