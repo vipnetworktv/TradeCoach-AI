@@ -606,13 +606,13 @@ export default function DashboardPage() {
   }, [dateMetrics.monthTrades]);
 
   const recentTrades = useMemo(
-    () => trades.slice(0, 6),
-    [trades],
+    () => profileScopedTrades.slice(0, 6),
+    [profileScopedTrades],
   );
 
   const latestSyncTimestamp =
-    trades[0]?.updated_at ||
-    trades[0]?.created_at ||
+    profileScopedTrades[0]?.updated_at ||
+    profileScopedTrades[0]?.created_at ||
     null;
 
   const bestDirection = useMemo(() => {
@@ -1045,12 +1045,12 @@ export default function DashboardPage() {
 
             <span
               className={`rounded-full px-3 py-1 text-sm font-semibold ${
-                trades.length > 0
+                profileScopedTrades.length > 0
                   ? "bg-emerald-500/10 text-emerald-400"
                   : "bg-amber-500/10 text-amber-400"
               }`}
             >
-              {trades.length > 0
+              {profileScopedTrades.length > 0
                 ? "Syncing"
                 : "Waiting"}
             </span>

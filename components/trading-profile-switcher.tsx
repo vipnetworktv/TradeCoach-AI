@@ -62,8 +62,8 @@ export default function TradingProfileSwitcher({
           </p>
 
           <p className="mt-1 max-w-2xl text-xs text-slate-500">
-            Stats reset when you start a new profile. Your full trade history
-            stays in the log below.
+            Each profile has its own trade log and stats. Start a new profile
+            when you reset an eval or want a clean slate.
           </p>
         </div>
 
@@ -162,8 +162,8 @@ export default function TradingProfileSwitcher({
           </div>
 
           <p className="mt-3 text-xs leading-5 text-slate-500">
-            This starts fresh stats from right now. Older trades remain in your
-            history and in previous profiles.
+            This starts fresh stats and an empty trade log from right now.
+            Switch back to an older profile anytime to see its trades.
           </p>
         </div>
       ) : null}

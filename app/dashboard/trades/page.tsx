@@ -595,15 +595,29 @@ export default function TradesPage() {
     accountFilter,
     resultFilter,
     dateRange,
+    activeProfile?.id,
   ]);
+
+  const profileScopedTrades =
+    useMemo(() => {
+      return filterTradesForTradingProfile(
+        trades,
+        activeProfile,
+        tradingProfiles,
+      );
+    }, [
+      trades,
+      activeProfile,
+      tradingProfiles,
+    ]);
 
   const accountOptions =
     useMemo(
       () =>
         buildTradeAccountOptions(
-          trades,
+          profileScopedTrades,
         ),
-      [trades],
+      [profileScopedTrades],
     );
 
   useEffect(() => {
@@ -671,33 +685,6 @@ export default function TradesPage() {
     statsAccountsReady,
   ]);
 
-  const profileScopedTrades =
-    useMemo(() => {
-      return filterTradesForTradingProfile(
-        trades,
-        activeProfile,
-        tradingProfiles,
-      );
-    }, [
-      trades,
-      activeProfile,
-      tradingProfiles,
-    ]);
-
-  const tradesInDateRange =
-    useMemo(() => {
-      return trades.filter(
-        (trade) =>
-          isInsideDateRange(
-            trade,
-            dateRange,
-          ),
-      );
-    }, [
-      trades,
-      dateRange,
-    ]);
-
   const profileTradesInDateRange =
     useMemo(() => {
       return profileScopedTrades.filter(
@@ -737,7 +724,7 @@ export default function TradesPage() {
 
   const filteredTrades =
     useMemo(() => {
-      return tradesInDateRange.filter(
+      return profileTradesInDateRange.filter(
         (trade) => {
           const accountKey =
             getTradeAccountKey(
@@ -789,7 +776,7 @@ export default function TradesPage() {
         },
       );
     }, [
-      tradesInDateRange,
+      profileTradesInDateRange,
       search,
       accountFilter,
       resultFilter,

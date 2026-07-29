@@ -90,13 +90,17 @@ export function filterTradesForTradingProfile<
     const timestamp = getTradeTimestampForProfile(trade);
 
     if (!timestamp) {
-      return profile.is_active;
+      return (
+        profile.stats_started_at === LEGACY_PROFILE_STATS_START
+      );
     }
 
     const tradeTime = new Date(timestamp).getTime();
 
     if (!Number.isFinite(tradeTime)) {
-      return profile.is_active;
+      return (
+        profile.stats_started_at === LEGACY_PROFILE_STATS_START
+      );
     }
 
     return tradeTime >= startMs && tradeTime < endMs;
