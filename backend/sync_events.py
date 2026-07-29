@@ -2725,7 +2725,7 @@ async def get_active_trading_profile_id(
     rows = await supabase_get(
         "trading_profiles",
         params={
-            "select": "id",
+            "select": "id,name",
             "user_id": f"eq.{user_id}",
             "is_active": "eq.true",
             "limit": "1",
@@ -2740,6 +2740,53 @@ async def get_active_trading_profile_id(
     )
 
     return profile_id
+
+
+async def get_active_trading_profile(
+    user_id: str,
+) -> dict[str, Any] | None:
+    rows = await supabase_get(
+        "trading_profiles",
+        params={
+            "select": "id,name",
+            "user_id": f"eq.{user_id}",
+            "is_active": "eq.true",
+            "limit": "1",
+        },
+    )
+
+    if not rows:
+        return None
+
+    return rows[0]
+
+
+async def resolve_trading_profile_id(
+    *,
+    user_id: str,
+    payload: dict[str, Any],
+) -> str | None:
+    requested = first_string(
+        payload.get("trading_profile_id"),
+    )
+
+    if requested:
+        rows = await supabase_get(
+            "trading_profiles",
+            params={
+                "select": "id",
+                "user_id": f"eq.{user_id}",
+                "id": f"eq.{requested}",
+                "limit": "1",
+            },
+        )
+
+        if rows:
+            return requested
+
+    return await get_active_trading_profile_id(
+        user_id,
+    )
 
 
 async def process_completed_trade_event(
@@ -2924,8 +2971,9 @@ async def process_completed_trade_event(
 
     now_iso = utc_now().isoformat()
 
-    trading_profile_id = await get_active_trading_profile_id(
-        device["user_id"],
+    trading_profile_id = await resolve_trading_profile_id(
+        user_id=device["user_id"],
+        payload=payload,
     )
 
     completed_trade = {

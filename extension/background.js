@@ -50,6 +50,9 @@ const DEFAULT_STATE = {
   lastFillFeeDetectedAt: null,
   lastContractMetadataAt: null,
   lastCompletedTradeDetectedAt: null,
+
+  activeTradingProfileId: null,
+  activeTradingProfileName: null,
 };
 
 let activeFlushPromise = null;
@@ -539,6 +542,14 @@ async function checkDeviceStatus(options = {}) {
 
     lastSuccessfulSyncAt:
       data.last_successful_sync_at ||
+      null,
+
+    activeTradingProfileId:
+      data.active_trading_profile_id ||
+      null,
+
+    activeTradingProfileName:
+      data.active_trading_profile_name ||
       null,
   });
 
@@ -1886,6 +1897,7 @@ function createCompletedTradeEvent(
       account_name: trade.accountName || null,
       is_paper: trade.isPaper === true,
       connected_broker: trade.connectedBroker || null,
+      trading_profile_id: metadata.tradingProfileId || null,
       page_url:
         metadata.pageUrl || null,
       detected_at:
@@ -1977,6 +1989,9 @@ async function handleBrokerEvent(
   const broker =
     message.broker || "tradovate";
 
+  const state =
+    await getStoredState();
+
   const event =
     createBrokerEvent(
       brokerEvent,
@@ -1986,15 +2001,16 @@ async function handleBrokerEvent(
 
         detectedAt:
           message.detectedAt,
+
+        tradingProfileId:
+          state.activeTradingProfileId ||
+          null,
       },
       broker,
     );
 
   const queueResult =
     await queueBrokerEvent(event);
-
-  const state =
-    await getStoredState();
 
   const now =
     new Date().toISOString();
@@ -2305,6 +2321,36 @@ chrome.runtime.onMessage.addListener(
     sender,
     sendResponse,
   ) => {
+    if (message?.type === "TRADECOACH_ACTIVE_PROFILE") {
+      const profileId = String(message.profileId || "").trim();
+      const profileName = String(message.profileName || "").trim();
+
+      if (!profileId) {
+        sendResponse({ success: false });
+        return false;
+      }
+
+      chrome.storage.local
+        .set({
+          activeTradingProfileId: profileId,
+          activeTradingProfileName: profileName || null,
+        })
+        .then(() => {
+          sendResponse({ success: true });
+        })
+        .catch((error) => {
+          sendResponse({
+            success: false,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Could not store active profile.",
+          });
+        });
+
+      return true;
+    }
+
     if (
       message?.type ===
       "TRADOVATE_PAGE_DETECTED"

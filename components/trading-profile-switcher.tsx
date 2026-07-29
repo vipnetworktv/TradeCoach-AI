@@ -62,8 +62,8 @@ export default function TradingProfileSwitcher({
           </p>
 
           <p className="mt-1 max-w-2xl text-xs text-slate-500">
-            Each profile has its own trade log and stats. Start a new profile
-            when you reset an eval or want a clean slate.
+            New TradingView trades sync to the profile selected below. Switch
+            profiles before you trade to keep logs separate.
           </p>
         </div>
 
@@ -108,7 +108,10 @@ export default function TradingProfileSwitcher({
 
         {activeProfile ? (
           <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-400">
-            Stats from{" "}
+            Syncing trades to{" "}
+            <span className="text-slate-200">{activeProfile.name}</span>
+            {" · "}
+            stats from{" "}
             <span className="text-slate-200">
               {formatTradingProfileStartedAt(
                 activeProfile.stats_started_at,

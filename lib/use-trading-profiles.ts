@@ -12,6 +12,34 @@ import {
   type TradingProfile,
 } from "@/lib/trading-profiles";
 
+function notifyExtensionActiveProfile(
+  profiles: TradingProfile[],
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.postMessage(
+    { type: "TRADECOACH_ACTIVE_PROFILE_SYNC" },
+    window.location.origin,
+  );
+
+  const activeProfile = getActiveTradingProfile(profiles);
+
+  if (!activeProfile) {
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent("tradecoach-active-profile", {
+      detail: {
+        profileId: activeProfile.id,
+        profileName: activeProfile.name,
+      },
+    }),
+  );
+}
+
 export function useTradingProfiles() {
   const [profiles, setProfiles] = useState<TradingProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +64,7 @@ export function useTradingProfiles() {
       }
 
       setProfiles(payload.profiles ?? []);
+      notifyExtensionActiveProfile(payload.profiles ?? []);
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -79,6 +108,7 @@ export function useTradingProfiles() {
         }
 
         setProfiles(payload.profiles ?? []);
+        notifyExtensionActiveProfile(payload.profiles ?? []);
         return true;
       } catch (createError) {
         setError(
@@ -116,6 +146,7 @@ export function useTradingProfiles() {
       }
 
       setProfiles(payload.profiles ?? []);
+      notifyExtensionActiveProfile(payload.profiles ?? []);
       return true;
     } catch (activateError) {
       setError(

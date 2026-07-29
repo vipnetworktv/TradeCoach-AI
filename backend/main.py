@@ -12,7 +12,10 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sync_events import router as sync_events_router
+from sync_events import (
+    get_active_trading_profile,
+    router as sync_events_router,
+)
 
 # Always load the .env file located beside this main.py file.
 BACKEND_DIRECTORY = Path(__file__).resolve().parent
@@ -35,6 +38,16 @@ FRONTEND_URL = os.getenv(
     "FRONTEND_URL",
     "http://localhost:3000",
 ).rstrip("/")
+
+CORS_ALLOWED_ORIGINS = sorted(
+    {
+        FRONTEND_URL,
+        "https://tradecoachai.org",
+        "https://www.tradecoachai.org",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    },
+)
 
 SUPABASE_URL = os.getenv(
     "SUPABASE_URL",
@@ -62,15 +75,14 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        FRONTEND_URL,
-    ],
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_origin_regex=(
-        r"^chrome-extension://[a-p]{32}$"
+        r"^chrome-extension://[a-z]{32}$"
     ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 app.include_router(sync_events_router)
 
@@ -1225,6 +1237,10 @@ async def sync_device_status(
             exc,
         )
 
+    active_profile = await get_active_trading_profile(
+        device["user_id"],
+    )
+
     return {
         "connected": True,
         "device_id": device["id"],
@@ -1238,6 +1254,16 @@ async def sync_device_status(
             device.get(
                 "extension_version",
             )
+        ),
+        "active_trading_profile_id": (
+            active_profile.get("id")
+            if active_profile
+            else None
+        ),
+        "active_trading_profile_name": (
+            active_profile.get("name")
+            if active_profile
+            else None
         ),
         "last_successful_sync_at": (
             device.get(
