@@ -15,27 +15,27 @@ type TradeCoachLogoProps = {
 const sizeConfig = {
   sidebar: {
     src: TRADECOACH_LOGO_COMPACT_PNG,
-    width: 626,
-    height: 168,
+    width: 675,
+    height: 134,
     className: "h-auto w-full max-w-[220px]",
   },
   nav: {
     src: TRADECOACH_LOGO_COMPACT_PNG,
-    width: 626,
-    height: 168,
+    width: 675,
+    height: 134,
     className: "h-9 w-auto sm:h-10",
   },
   footer: {
     src: TRADECOACH_LOGO_PNG,
-    width: 627,
-    height: 273,
-    className: "h-auto w-full max-w-[240px]",
+    width: 675,
+    height: 134,
+    className: "h-auto w-full max-w-[260px]",
   },
   auth: {
     src: TRADECOACH_LOGO_PNG,
-    width: 627,
-    height: 273,
-    className: "mx-auto h-auto w-full max-w-[280px]",
+    width: 675,
+    height: 134,
+    className: "mx-auto h-auto w-full max-w-[320px]",
   },
 } as const;
 
