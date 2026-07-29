@@ -2643,6 +2643,82 @@ async def ensure_tradingview_account_record(
         return
 
 
+async def find_semantic_duplicate_trade(
+    *,
+    user_id: str,
+    broker: str,
+    symbol: str,
+    direction: str,
+    quantity: float,
+    entry_price: float,
+    exit_price: float,
+    entry_at: datetime,
+    exit_at: datetime,
+) -> dict[str, Any] | None:
+    candidates = await supabase_get(
+        "broker_completed_trades",
+        params={
+            "user_id": f"eq.{user_id}",
+            "broker": f"eq.{broker}",
+            "symbol": f"eq.{symbol}",
+            "direction": f"eq.{direction}",
+            "quantity": f"eq.{quantity}",
+            "select": (
+                "id,broker_pair_id,entry_price,"
+                "exit_price,entry_at,exit_at,net_pnl"
+            ),
+            "order": "exit_at.desc",
+            "limit": "25",
+        },
+    )
+
+    for row in candidates:
+        row_entry = parse_datetime(
+            row.get("entry_at"),
+        )
+        row_exit = parse_datetime(
+            row.get("exit_at"),
+        )
+        row_entry_price = safe_float(
+            row.get("entry_price"),
+        )
+        row_exit_price = safe_float(
+            row.get("exit_price"),
+        )
+
+        if (
+            row_entry is None
+            or row_exit is None
+            or row_entry_price is None
+            or row_exit_price is None
+        ):
+            continue
+
+        if abs(row_entry_price - entry_price) > 0.05:
+            continue
+
+        if abs(row_exit_price - exit_price) > 0.05:
+            continue
+
+        if abs(
+            (
+                row_entry - entry_at
+            ).total_seconds(),
+        ) > 120:
+            continue
+
+        if abs(
+            (
+                row_exit - exit_at
+            ).total_seconds(),
+        ) > 120:
+            continue
+
+        return row
+
+    return None
+
+
 async def process_completed_trade_event(
     *,
     event: BrokerSyncEvent,
@@ -2763,6 +2839,38 @@ async def process_completed_trade_event(
 
     if net_pnl is None:
         net_pnl = gross_pnl - fees
+
+    duplicate = await find_semantic_duplicate_trade(
+        user_id=device["user_id"],
+        broker=event.broker,
+        symbol=symbol,
+        direction=direction,
+        quantity=quantity,
+        entry_price=entry_price,
+        exit_price=exit_price,
+        entry_at=entry_at,
+        exit_at=exit_at,
+    )
+
+    if (
+        duplicate
+        and duplicate.get("broker_pair_id") != pair_id
+    ):
+        return {
+            "pair_id":
+                duplicate.get("broker_pair_id"),
+
+            "status":
+                "duplicate_skipped",
+
+            "symbol":
+                symbol,
+
+            "net_pnl":
+                safe_float(
+                    duplicate.get("net_pnl"),
+                ),
+        }
 
     account_external_id = first_string(
         payload.get(

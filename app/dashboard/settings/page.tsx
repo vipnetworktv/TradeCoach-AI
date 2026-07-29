@@ -3,6 +3,7 @@ import ExtensionPairingPanel from "@/components/extension-pairing-panel";
 import NotificationSettingsPanel from "@/components/notification-settings";
 import PasswordSettingsPanel from "@/components/password-settings-panel";
 import ProfileSettingsPanel from "@/components/profile-settings-panel";
+import TradingDataSettingsPanel from "@/components/trading-data-settings-panel";
 import TradingPreferencesPanel from "@/components/trading-preferences-panel";
 import TwoFactorSettingsPanel from "@/components/two-factor-settings";
 
@@ -37,45 +38,7 @@ export default function SettingsPage() {
           <TwoFactorSettingsPanel />
           <ActiveSessionPanel />
 
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
-              Data & Privacy
-            </p>
-
-            <h3 className="mt-2 text-2xl font-bold">Your Trading Data</h3>
-
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              Data export, chat history cleanup, and bulk trade deletion are
-              planned next. You can delete individual trades from the Trades
-              page today.
-            </p>
-
-            <div className="mt-6 space-y-3">
-              <button
-                type="button"
-                disabled
-                className="w-full cursor-not-allowed rounded-xl border border-slate-800 px-5 py-3 text-left font-semibold text-slate-600"
-              >
-                Download My Data
-              </button>
-
-              <button
-                type="button"
-                disabled
-                className="w-full cursor-not-allowed rounded-xl border border-slate-800 px-5 py-3 text-left font-semibold text-slate-600"
-              >
-                Clear AI Chat History
-              </button>
-
-              <button
-                type="button"
-                disabled
-                className="w-full cursor-not-allowed rounded-xl border border-slate-800 px-5 py-3 text-left font-semibold text-slate-600"
-              >
-                Delete Imported Trades
-              </button>
-            </div>
-          </div>
+          <TradingDataSettingsPanel />
 
           <div className="rounded-3xl border border-rose-500/20 bg-rose-500/5 p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-rose-400">

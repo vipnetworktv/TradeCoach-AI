@@ -171,6 +171,16 @@ export default function TradingProfileSwitcher({
       {localError || error ? (
         <p className="mt-3 text-sm text-rose-300">
           {localError || error}
+          {error?.includes("setup_trading_profiles.sql") ? (
+            <>
+              {" "}
+              Open Supabase → SQL Editor → paste the contents of{" "}
+              <span className="font-mono text-slate-200">
+                supabase/setup_trading_profiles.sql
+              </span>
+              .
+            </>
+          ) : null}
         </p>
       ) : null}
     </div>

@@ -330,11 +330,49 @@ async function updateDebugInfo(state, activeTab) {
     `Extension v${chrome.runtime.getManifest().version}`;
 }
 
-function updateConnectTabButtons(activeTab) {
-  if (connectTradingviewTabButton) {
-    const visible = activeTab && activeTabLooksLikeBroker(activeTab);
+function isTradingViewMonitoringActive(state, activeTab) {
+  const tradingviewLastSeenTimestamp = state?.tradingviewLastSeenAt
+    ? new Date(state.tradingviewLastSeenAt).getTime()
+    : 0;
 
-    connectTradingviewTabButton.classList.toggle("hidden", !visible);
+  const scanFound =
+    state?.lastBrokerScanFound || {};
+
+  return (
+    Boolean(scanFound.tradingview) ||
+    (state?.tradingviewDetected &&
+      Date.now() - tradingviewLastSeenTimestamp < 900000) ||
+    (activeTab &&
+      activeTabLooksLikeBroker(activeTab) &&
+      Date.now() - tradingviewLastSeenTimestamp < 900000)
+  );
+}
+
+function updateConnectTabButtons(activeTab, state) {
+  if (!connectTradingviewTabButton) {
+    return;
+  }
+
+  const onTradingViewTab =
+    activeTab && activeTabLooksLikeBroker(activeTab);
+
+  const monitoringActive =
+    state && isTradingViewMonitoringActive(state, activeTab);
+
+  const showConnectButton =
+    onTradingViewTab && !monitoringActive;
+
+  connectTradingviewTabButton.classList.toggle(
+    "hidden",
+    !showConnectButton,
+  );
+
+  if (monitoringActive) {
+    connectTradingviewTabButton.textContent =
+      "Connected";
+  } else if (showConnectButton) {
+    connectTradingviewTabButton.textContent =
+      "Connect this TradingView tab";
   }
 }
 
@@ -388,27 +426,150 @@ async function sendMessage(message) {
   });
 }
 
-async function refreshState() {
-  try {
-    showTradeCoachChecking();
+function isRecentTimestamp(value, maxAgeMs = 900000) {
+  if (!value) {
+    return false;
+  }
 
-    const activeTab =
-      await getActiveTab();
+  const timestamp = new Date(value).getTime();
 
-    updateConnectTabButtons(activeTab);
+  if (!Number.isFinite(timestamp)) {
+    return false;
+  }
 
-    if (activeTab?.id && activeTabLooksLikeBroker(activeTab)) {
-      await forceConnectActiveTab();
+  return Date.now() - timestamp < maxAgeMs;
+}
+
+function renderTradingViewStatus(state, activeTab) {
+  if (isTradingViewMonitoringActive(state, activeTab)) {
+    showTradingViewConnected(state.tradingviewLastSeenAt);
+    return;
+  }
+
+  showTradingViewDisconnected();
+
+  if (activeTab?.url) {
+    try {
+      const host = new URL(activeTab.url).hostname;
+
+      if (host === "localhost" || host === "127.0.0.1") {
+        tradingviewStatusMessage.textContent =
+          "You're on TradeCoach right now. Switch to your TradingView tab, click this extension icon there, then press Check connection.";
+      }
+    } catch {
+      // Keep the default disconnected message.
+    }
+  }
+}
+
+function renderTradeCoachStatus(state, deviceResponse) {
+  if (!state?.paired) {
+    showTradeCoachUnpaired();
+    return;
+  }
+
+  if (deviceResponse) {
+    if (
+      deviceResponse.paired &&
+      deviceResponse.connected
+    ) {
+      showTradeCoachPaired(
+        deviceResponse.message,
+        state,
+      );
+      return;
     }
 
-    await sendMessage({
-      type: "SCAN_BROKER_TABS",
-    });
+    if (
+      deviceResponse.paired &&
+      deviceResponse.temporarilyOffline
+    ) {
+      showTradeCoachOffline(
+        deviceResponse.message,
+      );
+      return;
+    }
 
-    const response =
-      await sendMessage({
+    showTradeCoachUnpaired(
+      deviceResponse.message,
+    );
+    return;
+  }
+
+  if (state.lastDeviceError) {
+    showTradeCoachOffline(state.lastDeviceError);
+    return;
+  }
+
+  if (
+    state.lastDeviceConnected === false &&
+    isRecentTimestamp(state.lastDeviceCheckAt, 300000)
+  ) {
+    showTradeCoachOffline(
+      "Paired, but the backend is unavailable.",
+    );
+    return;
+  }
+
+  showTradeCoachPaired(
+    "TradeCoach Sync is connected.",
+    state,
+  );
+}
+
+async function loadCachedPopupState() {
+  const stored = await chrome.storage.local.get([
+    "paired",
+    "deviceName",
+    "pairedAt",
+    "lastDeviceCheckAt",
+    "lastDeviceConnected",
+    "lastDeviceError",
+    "lastSuccessfulSyncAt",
+    "tradingviewDetected",
+    "tradingviewLastSeenAt",
+    "lastBrokerScanFound",
+    "pendingBrokerEvents",
+  ]);
+
+  const pendingEvents = Array.isArray(stored.pendingBrokerEvents)
+    ? stored.pendingBrokerEvents
+    : [];
+
+  return {
+    ...stored,
+    lastDeviceConnected:
+      stored.lastDeviceConnected === true ||
+      (stored.paired === true &&
+        stored.lastDeviceConnected !== false &&
+        Boolean(stored.lastDeviceCheckAt) &&
+        !stored.lastDeviceError),
+    pendingEventCount: pendingEvents.length,
+  };
+}
+
+async function renderCachedStateInstantly() {
+  try {
+    const state = await loadCachedPopupState();
+
+    renderTradeCoachStatus(state, null);
+    renderTradingViewStatus(state, null);
+    updateConnectTabButtons(null, state);
+  } catch {
+    // Fall back to the normal refresh path.
+  }
+}
+
+async function refreshState(options = {}) {
+  const forceCheck = options.forceCheck === true;
+
+  try {
+    const [activeTab, response] = await Promise.all([
+      getActiveTab(),
+      sendMessage({
         type: "GET_SYNC_STATE",
-      });
+      }),
+    ]);
 
     if (!response.success) {
       showTradeCoachUnpaired(
@@ -424,83 +585,75 @@ async function refreshState() {
     const state = response.state;
 
     await updateDebugInfo(state, activeTab);
+    renderTradingViewStatus(state, activeTab);
+    renderTradeCoachStatus(state, null);
+    updateConnectTabButtons(activeTab, state);
 
-  const tradingviewLastSeenTimestamp = state.tradingviewLastSeenAt
-    ? new Date(state.tradingviewLastSeenAt).getTime()
-    : 0;
+    const shouldRefreshDevice =
+      forceCheck ||
+      !state.lastDeviceCheckAt ||
+      !isRecentTimestamp(state.lastDeviceCheckAt, 120000);
 
-  const scanFound =
-    state?.lastBrokerScanFound || {};
-
-  const tradingviewRecentlyDetected =
-    Boolean(scanFound.tradingview) ||
-    (state.tradingviewDetected &&
-      Date.now() - tradingviewLastSeenTimestamp < 900000);
-
-  if (tradingviewRecentlyDetected) {
-    showTradingViewConnected(state.tradingviewLastSeenAt);
-  } else {
-    showTradingViewDisconnected();
-
-    if (activeTab?.url) {
-      try {
-        const host = new URL(activeTab.url).hostname;
-
-        if (host === "localhost" || host === "127.0.0.1") {
-          tradingviewStatusMessage.textContent =
-            "You're on TradeCoach right now. Switch to your TradingView tab, click this extension icon there, then press Check connection.";
+    if (
+      activeTab?.id &&
+      activeTabLooksLikeBroker(activeTab) &&
+      !isTradingViewMonitoringActive(state, activeTab)
+    ) {
+      void forceConnectActiveTab().then(async (result) => {
+        if (!result?.success) {
+          return;
         }
-      } catch {
-        // Keep the default disconnected message.
-      }
-    }
-  }
-  if (!state.paired) {
-    showTradeCoachUnpaired();
-    return;
-  }
 
-  const deviceResponse =
-    await sendMessage({
-      type:
-        "CHECK_DEVICE_STATUS",
+        const latest = await sendMessage({
+          type: "GET_SYNC_STATE",
+        });
+
+        if (!latest.success) {
+          return;
+        }
+
+        renderTradingViewStatus(latest.state, activeTab);
+        updateConnectTabButtons(activeTab, latest.state);
+      });
+    }
+
+    void sendMessage({
+      type: "SCAN_BROKER_TABS",
+    }).then(async () => {
+      const latest = await sendMessage({
+        type: "GET_SYNC_STATE",
+      });
+
+      if (!latest.success) {
+        return;
+      }
+
+      renderTradingViewStatus(latest.state, activeTab);
+      updateConnectTabButtons(activeTab, latest.state);
     });
 
-  if (!deviceResponse.success) {
-    showTradeCoachOffline(
-      deviceResponse.error ||
-      "The TradeCoach connection could not be checked.",
-    );
+    if (!state.paired || !shouldRefreshDevice) {
+      return;
+    }
 
-    return;
-  }
+    if (forceCheck) {
+      showTradeCoachChecking();
+    }
 
-  if (
-    deviceResponse.paired &&
-    deviceResponse.connected
-  ) {
-    showTradeCoachPaired(
-      deviceResponse.message,
-      state,
-    );
+    void sendMessage({
+      type: "CHECK_DEVICE_STATUS",
+      skipFlush: true,
+    }).then((deviceResponse) => {
+      if (!deviceResponse.success) {
+        showTradeCoachOffline(
+          deviceResponse.error ||
+          "The TradeCoach connection could not be checked.",
+        );
+        return;
+      }
 
-    return;
-  }
-
-  if (
-    deviceResponse.paired &&
-    deviceResponse.temporarilyOffline
-  ) {
-    showTradeCoachOffline(
-      deviceResponse.message,
-    );
-
-    return;
-  }
-
-  showTradeCoachUnpaired(
-    deviceResponse.message,
-  );
+      renderTradeCoachStatus(state, deviceResponse);
+    });
   } catch (error) {
     const message =
       error instanceof Error
@@ -624,7 +777,9 @@ checkConnectionButton.addEventListener(
     checkConnectionButton.textContent =
       "Checking connection...";
 
-    await refreshState();
+    await refreshState({
+      forceCheck: true,
+    });
 
     checkConnectionButton.disabled = false;
 
@@ -650,7 +805,9 @@ if (syncNowButton) {
           "Pending trades could not be synced.";
       }
 
-      await refreshState();
+      await refreshState({
+      forceCheck: true,
+    });
 
       syncNowButton.disabled = false;
       syncNowButton.textContent = "Sync pending trades";
@@ -686,8 +843,11 @@ if (connectTradingviewTabButton) {
 
     connectTradingviewTabButton.textContent = "Connected";
 
-    await refreshState();
+    await refreshState({
+      forceCheck: true,
+    });
   });
 }
 
+void renderCachedStateInstantly();
 refreshState();

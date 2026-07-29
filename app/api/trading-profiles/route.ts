@@ -17,6 +17,27 @@ type ActivateProfileBody = {
   profileId?: string;
 };
 
+function formatDatabaseError(error: unknown, tableName: string) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error || "Unknown database error");
+
+  if (
+    message.includes(tableName) &&
+    (message.includes("does not exist") ||
+      message.includes("schema cache") ||
+      message.includes("Could not find the table"))
+  ) {
+    return (
+      `The ${tableName} table is missing in Supabase. ` +
+      "Open Supabase → SQL Editor and run supabase/setup_trading_profiles.sql, then try again."
+    );
+  }
+
+  return message;
+}
+
 async function getAuthenticatedUser() {
   const supabase = await createClient();
   const {
@@ -93,10 +114,7 @@ export async function GET() {
   } catch (error) {
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Could not load trading profiles.",
+        error: formatDatabaseError(error, "trading_profiles"),
       },
       { status: 502 },
     );
@@ -160,10 +178,7 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Could not create trading profile.",
+        error: formatDatabaseError(error, "trading_profiles"),
       },
       { status: 502 },
     );
@@ -230,10 +245,7 @@ export async function PATCH(request: Request) {
   } catch (error) {
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Could not switch trading profile.",
+        error: formatDatabaseError(error, "trading_profiles"),
       },
       { status: 502 },
     );

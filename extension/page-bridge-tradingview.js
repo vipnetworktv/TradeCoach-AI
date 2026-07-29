@@ -8,6 +8,7 @@
   const emittedTradeKeys = new Set();
   const emittedSemanticKeys = new Set();
   const seenFillKeys = new Set();
+  const orderFilledQtyByOrderId = new Map();
   const openLotsBySymbol = new Map();
   const accountContextById = new Map();
   let defaultAccountContext = null;
@@ -173,7 +174,7 @@
     const normalized = safeString(value)?.toLowerCase();
 
     if (!normalized) {
-      return true;
+      return false;
     }
 
     if (isSkippedStatus(normalized)) {
@@ -725,6 +726,91 @@
     ].join("|");
   }
 
+  function looksLikeOpenPositionSnapshot(object) {
+    if (!object || typeof object !== "object") {
+      return false;
+    }
+
+    if (
+      pickObjectValue(object, [
+        "unrealizedPnl",
+        "unrealized_pnl",
+        "openPL",
+        "open_pl",
+        "upl",
+        "markPrice",
+        "marketValue",
+      ]) !== null
+    ) {
+      return true;
+    }
+
+    const hasFloatingPnl = pickObjectValue(object, [
+      "profit",
+      "pl",
+      "pnl",
+      "netPnl",
+      "net_pnl",
+    ]);
+    const hasCloseTime = pickObjectValue(object, [
+      "closingTime",
+      "Closing Time",
+      "closeTime",
+      "closedAt",
+      "exitAt",
+      "exit_at",
+    ]);
+    const hasTradeId = pickObjectValue(object, [
+      "tradeId",
+      "trade_id",
+    ]);
+
+    return Boolean(hasFloatingPnl && !hasCloseTime && !hasTradeId);
+  }
+
+  function isLikelyClosedTradeRow(object, tradeId) {
+    if (
+      tradeId &&
+      !String(tradeId).startsWith("history-entry:")
+    ) {
+      return true;
+    }
+
+    const closingTime = pickObjectValue(object, [
+      "closingTime",
+      "Closing Time",
+      "closeTime",
+      "closedAt",
+      "exitAt",
+      "exit_at",
+    ]);
+    const placingTime = pickObjectValue(object, [
+      "placingTime",
+      "Placing Time",
+      "openTime",
+      "openedAt",
+      "entryAt",
+      "entry_at",
+    ]);
+
+    if (!closingTime || !placingTime) {
+      return false;
+    }
+
+    const closeMs = new Date(
+      parseTimestamp(closingTime),
+    ).getTime();
+    const openMs = new Date(
+      parseTimestamp(placingTime),
+    ).getTime();
+
+    return (
+      Number.isFinite(closeMs) &&
+      Number.isFinite(openMs) &&
+      closeMs > openMs
+    );
+  }
+
   function buildTradeFingerprint(trade) {
     return String(trade.brokerPairId || trade.id || [
       trade.symbol,
@@ -955,13 +1041,22 @@
     const symbol = normalizeSymbol(object.symbol);
     const side = normalizeSide(object.side);
     const orderId = safeString(object.id ?? object.orderId);
-    const qty = safeNumber(object.filledQty ?? object.qty);
+    const cumulativeQty = safeNumber(
+      object.filledQty ?? object.qty,
+    );
     const price = safeNumber(
       object.avgPrice ?? object.price ?? object.fillPrice,
     );
     const status = object.status;
 
-    if (!symbol || !side || !orderId || !qty || qty <= 0 || price === null) {
+    if (
+      !symbol ||
+      !side ||
+      !orderId ||
+      !cumulativeQty ||
+      cumulativeQty <= 0 ||
+      price === null
+    ) {
       return null;
     }
 
@@ -969,12 +1064,22 @@
       return null;
     }
 
+    const previousQty =
+      orderFilledQtyByOrderId.get(orderId) || 0;
+    const deltaQty = cumulativeQty - previousQty;
+
+    if (deltaQty <= 0) {
+      orderFilledQtyByOrderId.set(orderId, cumulativeQty);
+      return null;
+    }
+
+    orderFilledQtyByOrderId.set(orderId, cumulativeQty);
     const accountContext = resolveContextForObject(object);
 
     return {
       symbol,
       side,
-      qty,
+      qty: deltaQty,
       price,
       orderId,
       time: parseTimestamp(
@@ -985,115 +1090,40 @@
     };
   }
 
-  function extractFillCandidate(object) {
+  function extractBrokerExecutionFill(object) {
     if (!object || typeof object !== "object" || Array.isArray(object)) {
       return null;
     }
 
-    const symbol = normalizeSymbol(
-      pickObjectValue(object, [
-        "symbol",
-        "ticker",
-        "instrument",
-        "contract",
-        "fullSymbol",
-        "product",
-        "name",
-      ]),
-    );
-
+    const symbol = normalizeSymbol(object.symbol);
     const side = normalizeSide(
-      pickObjectValue(object, [
-        "side",
-        "action",
-        "direction",
-        "buySell",
-        "tradeSide",
-        "bs",
-        "b/s",
-      ]),
+      object.side ?? object.direction ?? object.action,
     );
-
     const qty = safeNumber(
-      pickObjectValue(object, [
-        "qty",
-        "quantity",
-        "filledQty",
-        "filled_qty",
-        "filledQuantity",
-        "filled_quantity",
-        "size",
-        "amount",
-        "filled",
-      ]),
+      object.qty ?? object.quantity ?? object.size,
     );
-
     const price = safeNumber(
-      pickObjectValue(object, [
-        "fillPrice",
-        "fill_price",
-        "Fill Price",
-        "filledPrice",
-        "avgFillPrice",
-        "avg_fill_price",
-        "averageFillPrice",
-        "avgPrice",
-        "avg_price",
-        "price",
-        "executionPrice",
-      ]),
+      object.price ??
+        object.fillPrice ??
+        object.avgPrice ??
+        object.executionPrice,
+    );
+    const executionId = safeString(
+      object.id ??
+        object.executionId ??
+        object.execution_id ??
+        object.fillId ??
+        object.fill_id,
     );
 
-    const status = pickObjectValue(object, [
-      "status",
-      "state",
-      "orderStatus",
-      "executionStatus",
-    ]);
-
-    let orderId = safeString(
-      pickObjectValue(object, [
-        "id",
-        "orderId",
-        "order_id",
-        "orderID",
-        "fillId",
-        "fill_id",
-        "executionId",
-        "execution_id",
-        "levelId",
-        "level_id",
-      ]),
-    );
-
-    const time = parseTimestamp(
-      pickObjectValue(object, [
-        "closingTime",
-        "Closing Time",
-        "closeTime",
-        "filledAt",
-        "filled_at",
-        "executionTime",
-        "placingTime",
-        "Placing Time",
-        "updatedAt",
-        "updateTime",
-        "timestamp",
-        "time",
-        "date",
-        "Fill Time",
-      ]),
-    );
-
-    if (!symbol || !side || !qty || qty <= 0 || price === null) {
-      return null;
-    }
-
-    if (!orderId) {
-      orderId = `tv-fill:${symbol}:${time}:${qty}:${price.toFixed(4)}`;
-    }
-
-    if (!isFilledStatus(status)) {
+    if (
+      !symbol ||
+      !side ||
+      !qty ||
+      qty <= 0 ||
+      price === null ||
+      !executionId
+    ) {
       return null;
     }
 
@@ -1104,8 +1134,13 @@
       side,
       qty,
       price,
-      orderId,
-      time,
+      orderId: executionId,
+      time: parseTimestamp(
+        object.time ??
+          object.timestamp ??
+          object.filledAt ??
+          object.executionTime,
+      ),
       accountExternalId: accountContext.accountExternalId,
       accountContext,
     };
@@ -1234,6 +1269,14 @@
       entryPrice === null ||
       exitPrice === null
     ) {
+      return null;
+    }
+
+    if (looksLikeOpenPositionSnapshot(object)) {
+      return null;
+    }
+
+    if (!isLikelyClosedTradeRow(object, tradeId)) {
       return null;
     }
 
@@ -1387,10 +1430,11 @@
         return;
       }
 
-      const fill = extractFillCandidate(object);
+      const brokerExecutionFill =
+        extractBrokerExecutionFill(object);
 
-      if (fill) {
-        rememberFill(fill);
+      if (brokerExecutionFill) {
+        rememberFill(brokerExecutionFill);
       }
     });
 
@@ -1519,7 +1563,6 @@
 
   const hookedBrokers = new WeakSet();
   const hookedBrokerList = [];
-  let brokerHistoryBootstrapped = false;
 
   function findBrokerCandidates(root, depth = 0, seen = new WeakSet()) {
     const matches = [];
@@ -1707,8 +1750,7 @@
       };
     }
 
-    void syncBrokerOrders(broker, !brokerHistoryBootstrapped);
-    brokerHistoryBootstrapped = true;
+    void syncBrokerOrders(broker, false);
   }
 
   function discoverAndHookBrokers() {
@@ -1720,15 +1762,10 @@
   }
 
   window.setInterval(discoverAndHookBrokers, 5000);
-  window.setInterval(() => {
-    for (const broker of hookedBrokerList) {
-      void syncBrokerOrders(broker, false);
-    }
-  }, 15000);
 
   discoverAndHookBrokers();
 
   console.info(
-    "[TradeCoach] TradingView trade sync bridge active v0.8.6 (broker API + WebSocket + fetch).",
+    "[TradeCoach] TradingView trade sync bridge active v0.9.7 (strict fills + broker API).",
   );
 })();

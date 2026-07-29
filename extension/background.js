@@ -32,6 +32,7 @@ const DEFAULT_STATE = {
   pairedAt: null,
 
   lastDeviceCheckAt: null,
+  lastDeviceConnected: false,
   lastDeviceError: null,
   lastSuccessfulSyncAt: null,
   lastTestEventAt: null,
@@ -62,10 +63,21 @@ async function getStoredState() {
       "lastBrokerScanTabCount",
     ]);
 
-  return {
+  const merged = {
     ...DEFAULT_STATE,
     ...stored,
   };
+
+  if (
+    merged.paired &&
+    merged.lastDeviceConnected !== false &&
+    merged.lastDeviceCheckAt &&
+    !merged.lastDeviceError
+  ) {
+    merged.lastDeviceConnected = true;
+  }
+
+  return merged;
 }
 
 function getPublicState(state) {
@@ -124,6 +136,9 @@ function getPublicState(state) {
 
     lastDeviceCheckAt:
       state.lastDeviceCheckAt,
+
+    lastDeviceConnected:
+      state.lastDeviceConnected === true,
 
     lastDeviceError:
       state.lastDeviceError,
@@ -406,6 +421,8 @@ async function pairDevice(code) {
     lastDeviceCheckAt:
       pairedAt,
 
+    lastDeviceConnected: true,
+
     lastDeviceError: null,
   });
 
@@ -423,7 +440,8 @@ async function pairDevice(code) {
   };
 }
 
-async function checkDeviceStatus() {
+async function checkDeviceStatus(options = {}) {
+  const skipFlush = options.skipFlush === true;
   const state =
     await getStoredState();
 
@@ -453,6 +471,12 @@ async function checkDeviceStatus() {
       },
     );
   } catch {
+    await chrome.storage.local.set({
+      lastDeviceCheckAt:
+        new Date().toISOString(),
+      lastDeviceConnected: false,
+    });
+
     return {
       connected: false,
       paired: true,
@@ -509,6 +533,8 @@ async function checkDeviceStatus() {
     lastDeviceCheckAt:
       new Date().toISOString(),
 
+    lastDeviceConnected: true,
+
     lastDeviceError: null,
 
     lastSuccessfulSyncAt:
@@ -516,7 +542,9 @@ async function checkDeviceStatus() {
       null,
   });
 
-  await flushPendingEvents();
+  if (!skipFlush) {
+    await flushPendingEvents();
+  }
 
   return {
     connected: true,
@@ -2653,29 +2681,29 @@ chrome.runtime.onMessage.addListener(
       message?.type ===
       "GET_SYNC_STATE"
     ) {
-      refreshBrokerDetectionFromTabs()
-        .catch(() => {})
-        .finally(() => {
-          getStoredState()
-            .then((state) => {
-              sendResponse({
-                success: true,
+      getStoredState()
+        .then((state) => {
+          sendResponse({
+            success: true,
 
-                state:
-                  getPublicState(state),
-              });
-            })
-            .catch((error) => {
-              sendResponse({
-                success: false,
+            state:
+              getPublicState(state),
+          });
+        })
+        .catch((error) => {
+          sendResponse({
+            success: false,
 
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : "Sync state could not be loaded.",
-              });
-            });
+            error:
+              error instanceof Error
+                ? error.message
+                : "Sync state could not be loaded.",
+          });
         });
+
+      void refreshBrokerDetectionFromTabs().catch(
+        () => {},
+      );
 
       return true;
     }
@@ -2704,7 +2732,10 @@ chrome.runtime.onMessage.addListener(
       message?.type ===
       "CHECK_DEVICE_STATUS"
     ) {
-      checkDeviceStatus()
+      checkDeviceStatus({
+        skipFlush:
+          message.skipFlush === true,
+      })
         .then((result) => {
           sendResponse({
             success: true,

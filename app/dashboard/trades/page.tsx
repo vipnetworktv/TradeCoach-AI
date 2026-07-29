@@ -440,6 +440,11 @@ export default function TradesPage() {
   ] = useState<string | null>(null);
 
   const [
+    cleanupDuplicatesLoading,
+    setCleanupDuplicatesLoading,
+  ] = useState(false);
+
+  const [
     statsAccountKeys,
     setStatsAccountKeys,
   ] = useState<Set<string>>(
@@ -923,6 +928,56 @@ export default function TradesPage() {
     }
   }
 
+  async function cleanupDuplicateTrades() {
+    if (
+      !window.confirm(
+        "Remove duplicate TradingView trades? This keeps one row per matching entry/exit and deletes the rest. This cannot be undone.",
+      )
+    ) {
+      return;
+    }
+
+    setCleanupDuplicatesLoading(true);
+    setActionMessage(null);
+    setActionError(null);
+
+    try {
+      const response = await fetch(
+        "/api/trades/cleanup-duplicates",
+        {
+          method: "POST",
+        },
+      );
+
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        message?: string;
+        deletedCount?: number;
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "Could not clean up duplicate trades.",
+        );
+      }
+
+      setActionMessage(
+        data?.message ||
+          "Duplicate trades removed.",
+      );
+      await loadTrades(true);
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Could not clean up duplicate trades.",
+      );
+    } finally {
+      setCleanupDuplicatesLoading(false);
+    }
+  }
+
   function exportTradesToCsv() {
     if (
       filteredTrades.length ===
@@ -1098,12 +1153,25 @@ export default function TradesPage() {
         </div>
       ) : null}
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-wrap gap-3">
         <TradeCsvImportPanel
           onImported={() => {
             void loadTrades(true);
           }}
         />
+
+        <button
+          type="button"
+          onClick={() => {
+            void cleanupDuplicateTrades();
+          }}
+          disabled={cleanupDuplicatesLoading}
+          className="h-fit rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {cleanupDuplicatesLoading
+            ? "Cleaning duplicates..."
+            : "Remove duplicate trades"}
+        </button>
       </div>
 
       {totals.pending > 0 ? (
