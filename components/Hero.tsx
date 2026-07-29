@@ -115,7 +115,7 @@ export default function Hero({ isAuthenticated = false }: HeroProps) {
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-200/80">
                 Win rate
               </p>
-              <p className="mt-1 bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-6xl font-black tabular-nums leading-none text-transparent sm:text-7xl">
+              <p className="mt-1 text-6xl font-black tabular-nums leading-none text-cyan-300 sm:text-7xl">
                 74%
               </p>
             </div>
