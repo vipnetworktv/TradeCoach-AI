@@ -10,12 +10,9 @@ if [ ! -f "$CONF_SRC" ]; then
   exit 1
 fi
 
-echo "==> Installing nginx site config (proxy to 127.0.0.1:3000, not localhost)"
+echo "==> Installing TradeCoach nginx site only (proxy to 127.0.0.1:3001 and :8001)"
 sudo cp "$CONF_SRC" "$CONF_DST"
 sudo ln -sf "$CONF_DST" /etc/nginx/sites-enabled/tradecoach
-
-echo "==> Disable default site if it conflicts"
-sudo rm -f /etc/nginx/sites-enabled/default
 
 echo "==> Test nginx config"
 sudo nginx -t
@@ -26,4 +23,5 @@ sudo systemctl reload nginx
 echo
 echo "Done. Test:"
 echo "  curl -sI https://tradecoachai.org/ | head -1"
+echo "  curl -s https://api.tradecoachai.org/health"
 echo "  Hard refresh browser: Ctrl+Shift+R"

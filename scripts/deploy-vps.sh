@@ -2,8 +2,8 @@
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/var/www/tradecoach}"
-APP_PORT="${APP_PORT:-3000}"
-API_PORT="${API_PORT:-8000}"
+APP_PORT="${APP_PORT:-3001}"
+API_PORT="${API_PORT:-8001}"
 HEALTH_PATH="${HEALTH_PATH:-/}"
 MAX_HEALTH_ATTEMPTS="${MAX_HEALTH_ATTEMPTS:-30}"
 HEALTH_SLEEP_SECONDS="${HEALTH_SLEEP_SECONDS:-2}"
@@ -42,11 +42,12 @@ fi
 wait_for_port() {
   local port="$1"
   local label="$2"
+  local path="${3:-/}"
   local attempt=1
 
   while [ "$attempt" -le "$MAX_HEALTH_ATTEMPTS" ]; do
-    if curl -sf -o /dev/null "http://127.0.0.1:${port}${HEALTH_PATH}"; then
-      echo "==> ${label} is responding on port ${port}"
+    if curl -sf -o /dev/null "http://127.0.0.1:${port}${path}"; then
+      echo "==> ${label} is responding on port ${port}${path}"
       return 0
     fi
 
@@ -79,34 +80,41 @@ pm2_start_or_reload() {
 echo "==> Installing dependencies"
 npm install
 
+echo "==> Stopping Next.js during build (prevents OOM on 2GB VPS)"
+if pm2 describe tradecoach >/dev/null 2>&1; then
+  pm2 stop tradecoach || true
+fi
+
 echo "==> Building Next.js app (webpack, no extension zip — saves VPS memory)"
-export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1536}"
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}"
 if ! npm run build:app; then
   echo
-  echo "Build failed. PM2 was NOT restarted — the previous site version should still be running."
+  echo "Build failed. Restarting previous Next.js process if it exists..."
+  pm2 start tradecoach 2>/dev/null || pm2 start ecosystem.config.cjs --only tradecoach 2>/dev/null || true
   echo "Fix the build error above, then run this script again."
   exit 1
 fi
 
 if [ ! -f .next/BUILD_ID ] || [ ! -f .next/prerender-manifest.json ]; then
-  echo "Build failed: incomplete .next output. PM2 was NOT restarted."
+  echo "Build failed: incomplete .next output."
+  pm2 start tradecoach 2>/dev/null || pm2 start ecosystem.config.cjs --only tradecoach 2>/dev/null || true
   exit 1
 fi
 
-echo "==> Restarting PM2 processes (reload, not delete — avoids 502 gap)"
+echo "==> Restarting PM2 processes"
 pm2_start_or_reload tradecoach tradecoach
 pm2_start_or_reload tradecoach-api tradecoach-api
 pm2 save
 
 echo "==> Waiting for services to come back"
-if ! wait_for_port "$APP_PORT" "Next.js app"; then
+if ! wait_for_port "$APP_PORT" "Next.js app" "/api/health"; then
   echo
   echo "Recent app logs:"
   pm2 logs tradecoach --lines 40 --nostream || true
   exit 1
 fi
 
-if ! wait_for_port "$API_PORT" "FastAPI backend"; then
+if ! wait_for_port "$API_PORT" "FastAPI backend" "/health"; then
   echo "Warning: API did not respond — extension sync may be broken, but the website may still work."
   pm2 logs tradecoach-api --lines 40 --nostream || true
 fi

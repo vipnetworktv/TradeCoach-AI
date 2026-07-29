@@ -14,12 +14,12 @@ sudo grep -R "proxy_pass" /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/nu
 
 echo
 echo "==> localhost vs 127.0.0.1 checks"
-curl -s -o /dev/null -w "127.0.0.1:3000 → HTTP %{http_code}\n" http://127.0.0.1:3000/ || echo "127.0.0.1:3000 failed"
-curl -s -o /dev/null -w "localhost:3000 → HTTP %{http_code}\n" http://localhost:3000/ || echo "localhost:3000 failed"
+curl -s -o /dev/null -w "127.0.0.1:3001 → HTTP %{http_code}\n" http://127.0.0.1:3001/api/health || echo "127.0.0.1:3001 failed"
+curl -s -o /dev/null -w "127.0.0.1:8001/health → HTTP %{http_code}\n" http://127.0.0.1:8001/health || echo "127.0.0.1:8001 failed"
 
 echo
 echo "==> what localhost resolves to"
 getent ahosts localhost || true
 
 echo
-echo "If localhost:3000 fails but 127.0.0.1:3000 works, nginx must use 127.0.0.1 in proxy_pass."
+echo "If 127.0.0.1:3001 fails, nginx must proxy to 127.0.0.1 (not localhost)."

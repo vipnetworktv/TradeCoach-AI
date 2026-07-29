@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 
-import { dedupeTradesBySemanticKey } from "@/lib/trade-dedupe";
 import { tradeMatchesSearch } from "@/lib/trade-search";
 import {
   buildTradeAccountOptions,
@@ -408,14 +407,6 @@ export default function TradesPage() {
     BrokerCompletedTrade[]
   >([]);
 
-  const uniqueTrades = useMemo(
-    () => dedupeTradesBySemanticKey(trades),
-    [trades],
-  );
-
-  const duplicateTradeCount =
-    trades.length - uniqueTrades.length;
-
   const [
     loading,
     setLoading,
@@ -605,9 +596,9 @@ export default function TradesPage() {
     useMemo(
       () =>
         buildTradeAccountOptions(
-          uniqueTrades,
-      ),
-      [uniqueTrades],
+          trades,
+        ),
+      [trades],
     );
 
   useEffect(() => {
@@ -678,19 +669,19 @@ export default function TradesPage() {
   const profileScopedTrades =
     useMemo(() => {
       return filterTradesForTradingProfile(
-        uniqueTrades,
+        trades,
         activeProfile,
         tradingProfiles,
       );
     }, [
-      uniqueTrades,
+      trades,
       activeProfile,
       tradingProfiles,
     ]);
 
   const tradesInDateRange =
     useMemo(() => {
-      return uniqueTrades.filter(
+      return trades.filter(
         (trade) =>
           isInsideDateRange(
             trade,
@@ -698,7 +689,7 @@ export default function TradesPage() {
           ),
       );
     }, [
-      uniqueTrades,
+      trades,
       dateRange,
     ]);
 
@@ -1480,13 +1471,6 @@ export default function TradesPage() {
                 filteredTrades.length
               }{" "}
               real trades
-              {duplicateTradeCount > 0 ? (
-                <>
-                  {" "}
-                  · {duplicateTradeCount} duplicate
-                  {duplicateTradeCount === 1 ? "" : "s"} hidden
-                </>
-              ) : null}
             </p>
           </div>
 

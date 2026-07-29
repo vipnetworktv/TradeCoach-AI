@@ -93,72 +93,6 @@
     return withoutPrefix.replace(/[^A-Za-z0-9]/g, "").toUpperCase() || null;
   }
 
-  function normalizeContractSymbol(value) {
-    const raw = normalizeSymbol(value);
-
-    if (!raw) {
-      return null;
-    }
-
-    const monthCodeMatch = raw.match(/^([A-Z0-9]+?)[FGHJKMNQUVXZ]\d{1,4}$/);
-
-    if (monthCodeMatch?.[1]) {
-      return monthCodeMatch[1];
-    }
-
-    return raw;
-  }
-
-  function normalizeTimestampBucket(value) {
-    if (!value) {
-      return "";
-    }
-
-    const parsed = new Date(value).getTime();
-
-    if (!Number.isFinite(parsed)) {
-      return String(value).slice(0, 16);
-    }
-
-    return String(Math.floor(parsed / 30000));
-  }
-
-  function hashSemanticFingerprint(input) {
-    let hash = 2166136261;
-
-    for (let index = 0; index < input.length; index += 1) {
-      hash ^= input.charCodeAt(index);
-      hash = Math.imul(hash, 16777619);
-    }
-
-    return (hash >>> 0).toString(16).padStart(8, "0");
-  }
-
-  function buildSemanticFingerprint(trade) {
-    const accountKey = String(trade.accountExternalId || "unknown")
-      .replace(/^tv:/, "");
-
-    return [
-      accountKey,
-      normalizeContractSymbol(trade.symbol) || trade.symbol,
-      trade.direction,
-      trade.quantity,
-      trade.entryPrice.toFixed(4),
-      trade.exitPrice.toFixed(4),
-      normalizeTimestampBucket(trade.entryAt),
-      normalizeTimestampBucket(trade.exitAt),
-    ].join("|");
-  }
-
-  function buildStablePairId(accountExternalId, fingerprint) {
-    const accountKey = String(accountExternalId || "unknown").replace(
-      /^tv:/,
-      "",
-    );
-
-    return `tv:${accountKey}:fp:${hashSemanticFingerprint(fingerprint)}`;
-  }
-
   function normalizeSide(value) {
     const numericSide = safeNumber(value);
 
@@ -750,36 +684,56 @@
   }
 
   function enrichTradeAccount(trade) {
-    const enriched = defaultAccountContext && isGenericAccountContext(trade)
-      ? {
-          ...trade,
-          accountExternalId: defaultAccountContext.accountExternalId,
-          accountName: defaultAccountContext.accountName,
-          isPaper: defaultAccountContext.isPaper,
-          connectedBroker: defaultAccountContext.connectedBroker,
-        }
-      : trade;
+    if (!defaultAccountContext || !isGenericAccountContext(trade)) {
+      return trade;
+    }
 
-    const fingerprint = buildSemanticFingerprint(enriched);
-    const pairId = buildStablePairId(
-      enriched.accountExternalId,
-      fingerprint,
+    const pairId = buildPairId(
+      defaultAccountContext.accountExternalId,
+      trade.buyFillId,
+      trade.sellFillId,
+      trade.quantity,
     );
 
     return {
-      ...enriched,
+      ...trade,
       id: pairId,
       brokerPairId: pairId,
-      symbol: normalizeContractSymbol(enriched.symbol) || enriched.symbol,
+      accountExternalId: defaultAccountContext.accountExternalId,
+      accountName: defaultAccountContext.accountName,
+      isPaper: defaultAccountContext.isPaper,
+      connectedBroker: defaultAccountContext.connectedBroker,
     };
   }
 
   function buildSemanticTradeKey(trade) {
-    return buildSemanticFingerprint(trade);
+    const entryMs = new Date(trade.entryAt).getTime();
+    const exitMs = new Date(trade.exitAt).getTime();
+
+    return [
+      trade.symbol,
+      trade.direction,
+      trade.quantity,
+      trade.entryPrice.toFixed(2),
+      trade.exitPrice.toFixed(2),
+      Number.isFinite(entryMs)
+        ? Math.floor(entryMs / 30000)
+        : trade.entryAt.slice(0, 16),
+      Number.isFinite(exitMs)
+        ? Math.floor(exitMs / 30000)
+        : trade.exitAt.slice(0, 16),
+    ].join("|");
   }
 
   function buildTradeFingerprint(trade) {
-    return buildSemanticFingerprint(trade);
+    return String(trade.brokerPairId || trade.id || [
+      trade.symbol,
+      trade.entryAt.slice(0, 16),
+      trade.exitAt.slice(0, 16),
+      trade.quantity,
+      trade.entryPrice.toFixed(4),
+      trade.exitPrice.toFixed(4),
+    ].join("|"));
   }
 
   function normalizeTradeTimes(entryAt, exitAt) {
@@ -882,26 +836,17 @@
     const netPnl = grossPoints * pointValue * quantity;
     const account = accountContext || resolveAccountContext({});
     const normalizedTimes = normalizeTradeTimes(entryAt, exitAt);
-    const normalizedSymbol = normalizeContractSymbol(symbol) || symbol;
-    const tradeDraft = {
-      symbol: normalizedSymbol,
-      direction,
-      quantity,
-      entryPrice,
-      exitPrice,
-      entryAt: normalizedTimes.entryAt,
-      exitAt: normalizedTimes.exitAt,
-      accountExternalId: account.accountExternalId,
-    };
-    const pairId = buildStablePairId(
+    const pairId = buildPairId(
       account.accountExternalId,
-      buildSemanticFingerprint(tradeDraft),
+      buyFillId,
+      sellFillId,
+      quantity,
     );
 
     return {
       id: pairId,
       brokerPairId: pairId,
-      symbol: normalizedSymbol,
+      symbol,
       direction,
       quantity,
       entryPrice,
@@ -1299,28 +1244,19 @@
     const pointValue = getFuturesPointValue(symbol);
     const accountContext = resolveContextForObject(object);
     const normalizedTimes = normalizeTradeTimes(entryAt, exitAt);
-    const normalizedSymbol = normalizeContractSymbol(symbol) || symbol;
-    const tradeDraft = {
-      symbol: normalizedSymbol,
-      direction,
-      quantity,
-      entryPrice,
-      exitPrice,
-      entryAt: normalizedTimes.entryAt,
-      exitAt: normalizedTimes.exitAt,
-      accountExternalId: accountContext.accountExternalId,
-    };
     const pairId =
       tradeId ||
-      buildStablePairId(
+      buildPairId(
         accountContext.accountExternalId,
-        buildSemanticFingerprint(tradeDraft),
+        `history-entry:${symbol}:${normalizedTimes.entryAt.slice(0, 16)}`,
+        `history-exit:${symbol}:${normalizedTimes.exitAt.slice(0, 16)}`,
+        quantity,
       );
 
     return {
       id: pairId,
       brokerPairId: pairId,
-      symbol: normalizedSymbol,
+      symbol,
       direction,
       quantity,
       entryPrice,
