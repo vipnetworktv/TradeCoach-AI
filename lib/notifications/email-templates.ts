@@ -36,6 +36,12 @@ function escapeHtml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
+function emailLogoMarkup(maxWidth = 220): string {
+  const logoUrl = `${getAppBaseUrl()}/brand/tradecoach-ai-logo.png`;
+
+  return `<img src="${logoUrl}" alt="TradeCoach AI" width="${maxWidth}" style="display:block;height:auto;max-width:${maxWidth}px;border:0;" />`;
+}
+
 export function buildReportEmailHtml(
   summary: TradingReportSummary,
   firstName: string,
@@ -117,7 +123,7 @@ export function buildReportEmailHtml(
     <div style="background:#020617;padding:32px 16px;font-family:Arial,sans-serif;color:#e2e8f0;">
       <div style="max-width:640px;margin:0 auto;background:#0f172a;border:1px solid #1e293b;border-radius:24px;overflow:hidden;">
         <div style="padding:28px 28px 12px;">
-          <p style="margin:0;color:#22d3ee;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;">TradeCoach AI</p>
+          ${emailLogoMarkup()}
           <h1 style="margin:12px 0 0;color:#ffffff;font-size:28px;">${escapeHtml(summary.label)}</h1>
           <p style="margin:12px 0 0;color:#94a3b8;line-height:1.6;">Hi ${escapeHtml(firstName)}, here is your latest trading report.</p>
         </div>
@@ -191,7 +197,7 @@ export function buildSyncAlertEmailHtml(
   return `
     <div style="background:#020617;padding:32px 16px;font-family:Arial,sans-serif;color:#e2e8f0;">
       <div style="max-width:640px;margin:0 auto;background:#0f172a;border:1px solid #1e293b;border-radius:24px;padding:28px;">
-        <p style="margin:0;color:#22d3ee;font-size:12px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;">TradeCoach AI</p>
+        ${emailLogoMarkup()}
         <h1 style="margin:12px 0 0;color:#ffffff;font-size:28px;">Broker Sync Needs Attention</h1>
         <p style="margin:12px 0 20px;color:#94a3b8;line-height:1.6;">Hi ${escapeHtml(firstName)}, one or more connected accounts may not be syncing correctly.</p>
         <ul style="padding-left:18px;margin:0;">${rows}</ul>

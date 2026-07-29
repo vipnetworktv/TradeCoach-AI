@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import TradeCoachLogo from "@/components/tradecoach-logo";
 import { createClient } from "@/lib/supabase/client";
 import {
   PAYPAL_PLAN_DESCRIPTION,
@@ -116,7 +117,9 @@ export default function SubscribeRequiredGate({
         aria-labelledby="subscribe-gate-title"
         className="w-full max-w-xl rounded-3xl border border-cyan-500/20 bg-slate-900 p-6 shadow-2xl shadow-cyan-500/10 sm:p-8"
       >
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
+        <TradeCoachLogo size="auth" href={undefined} className="mx-0 max-w-[260px]" />
+
+        <p className="mt-5 text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
           Subscription Required
         </p>
 

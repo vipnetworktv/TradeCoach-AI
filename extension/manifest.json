@@ -3,6 +3,11 @@
   "name": "TradeCoach Sync",
   "version": "0.9.9",
   "description": "Automatically sync TradingView trades with TradeCoach AI.",
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
   "permissions": ["tabs", "alarms", "scripting", "storage"],
   "host_permissions": [
     "https://www.tradingview.com/*",
@@ -19,7 +24,12 @@
   },
   "action": {
     "default_title": "TradeCoach Sync",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon-16.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
   },
   "content_scripts": [
     {

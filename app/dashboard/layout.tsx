@@ -133,12 +133,12 @@ export default async function DashboardLayout({
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="border-b border-slate-800 bg-slate-950/95 px-6 py-5 backdrop-blur md:px-8">
             <div className="flex items-center justify-between gap-6">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
-                  TradeCoach AI
-                </p>
+              <div className="min-w-0 flex-1">
+                <div className="lg:hidden">
+                  <TradeCoachLogo size="nav" />
+                </div>
 
-                <h1 className="mt-1 text-2xl font-bold md:text-3xl">
+                <h1 className="mt-3 text-2xl font-bold md:mt-0 md:text-3xl lg:mt-1">
                   Welcome back, {firstName}
                 </h1>
               </div>

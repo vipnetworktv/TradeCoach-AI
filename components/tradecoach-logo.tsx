@@ -2,40 +2,33 @@ import Image from "next/image";
 import Link from "next/link";
 
 export const TRADECOACH_LOGO_PNG = "/brand/tradecoach-ai-logo.png";
-export const TRADECOACH_LOGO_COMPACT_PNG =
-  "/brand/tradecoach-ai-logo-compact.png";
+
+/** Native pixel size of `public/brand/tradecoach-ai-logo.png`. */
+export const TRADECOACH_LOGO_WIDTH = 901;
+export const TRADECOACH_LOGO_HEIGHT = 197;
 
 type TradeCoachLogoProps = {
   href?: string;
-  size?: "sidebar" | "nav" | "footer" | "auth";
+  size?: "sidebar" | "nav" | "footer" | "auth" | "hero";
   className?: string;
   priority?: boolean;
 };
 
 const sizeConfig = {
   sidebar: {
-    src: TRADECOACH_LOGO_COMPACT_PNG,
-    width: 675,
-    height: 134,
-    className: "h-auto w-full max-w-[220px]",
+    className: "h-auto w-full max-w-[240px]",
   },
   nav: {
-    src: TRADECOACH_LOGO_COMPACT_PNG,
-    width: 675,
-    height: 134,
-    className: "h-9 w-auto sm:h-10",
+    className: "h-10 w-auto sm:h-11",
   },
   footer: {
-    src: TRADECOACH_LOGO_PNG,
-    width: 675,
-    height: 134,
-    className: "h-auto w-full max-w-[260px]",
+    className: "h-auto w-full max-w-[280px]",
   },
   auth: {
-    src: TRADECOACH_LOGO_PNG,
-    width: 675,
-    height: 134,
     className: "mx-auto h-auto w-full max-w-[320px]",
+  },
+  hero: {
+    className: "h-12 w-auto sm:h-14",
   },
 } as const;
 
@@ -49,18 +42,18 @@ export default function TradeCoachLogo({
 
   const image = (
     <Image
-      src={config.src}
-      alt="TradeCoach AI"
-      width={config.width}
-      height={config.height}
+      src={TRADECOACH_LOGO_PNG}
+      alt="TradeCoach AI — Your Personal Trading Coach"
+      width={TRADECOACH_LOGO_WIDTH}
+      height={TRADECOACH_LOGO_HEIGHT}
       priority={priority}
       quality={100}
       sizes={
-        size === "nav"
-          ? "(max-width: 640px) 160px, 200px"
+        size === "nav" || size === "hero"
+          ? "(max-width: 640px) 180px, 220px"
           : size === "sidebar"
-            ? "220px"
-            : "(max-width: 640px) 240px, 280px"
+            ? "240px"
+            : "(max-width: 640px) 280px, 320px"
       }
       className={`${config.className} ${className}`.trim()}
     />
