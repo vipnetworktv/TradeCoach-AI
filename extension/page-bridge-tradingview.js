@@ -12,6 +12,7 @@
   const openLotsBySymbol = new Map();
   const accountContextById = new Map();
   let defaultAccountContext = null;
+  const bridgeStartedAtMs = Date.now();
 
   window.__TRADECOACH_TV_STATS__ = {
     wsMessages: 0,
@@ -204,16 +205,27 @@
     const raw = safeString(value);
 
     if (!raw) {
-      return new Date().toISOString();
+      return null;
     }
 
     const parsed = new Date(raw);
 
     if (Number.isNaN(parsed.getTime())) {
-      return new Date().toISOString();
+      return null;
     }
 
     return parsed.toISOString();
+  }
+
+  function isRecentBridgeFillTime(value) {
+    const fillMs = new Date(value).getTime();
+
+    if (!Number.isFinite(fillMs)) {
+      return false;
+    }
+
+    // Ignore stale broker rows replayed on hook; sync only this session.
+    return fillMs >= bridgeStartedAtMs - 120_000;
   }
 
   function getFuturesPointValue(symbol) {
@@ -961,6 +973,10 @@
   }
 
   function rememberFill(fill) {
+    if (!isRecentBridgeFillTime(fill.time)) {
+      return;
+    }
+
     const fillKey = `${fill.accountExternalId}:${fill.symbol}:${fill.side}:${fill.orderId}:${fill.time}:${fill.qty}:${fill.price}`;
 
     if (seenFillKeys.has(fillKey)) {
@@ -1075,6 +1091,13 @@
 
     orderFilledQtyByOrderId.set(orderId, cumulativeQty);
     const accountContext = resolveContextForObject(object);
+    const time = parseTimestamp(
+      object.updateTime ?? object.time ?? object.filledAt,
+    );
+
+    if (!time) {
+      return null;
+    }
 
     return {
       symbol,
@@ -1082,9 +1105,7 @@
       qty: deltaQty,
       price,
       orderId,
-      time: parseTimestamp(
-        object.updateTime ?? object.time ?? object.filledAt,
-      ),
+      time,
       accountExternalId: accountContext.accountExternalId,
       accountContext,
     };
@@ -1128,6 +1149,16 @@
     }
 
     const accountContext = resolveContextForObject(object);
+    const time = parseTimestamp(
+      object.time ??
+        object.timestamp ??
+        object.filledAt ??
+        object.executionTime,
+    );
+
+    if (!time) {
+      return null;
+    }
 
     return {
       symbol,
@@ -1135,12 +1166,7 @@
       qty,
       price,
       orderId: executionId,
-      time: parseTimestamp(
-        object.time ??
-          object.timestamp ??
-          object.filledAt ??
-          object.executionTime,
-      ),
+      time,
       accountExternalId: accountContext.accountExternalId,
       accountContext,
     };
@@ -1383,7 +1409,14 @@
     return payloads.length > 0 ? payloads : [trimmed];
   }
 
-  function processPayload(payload, sourceUrl) {
+  function isBrokerSyncSource(source) {
+    return (
+      source === "broker-order-update" ||
+      source === "broker-execution-update"
+    );
+  }
+
+  function processPayload(payload, source = "") {
     if (payload === null || payload === undefined) {
       return;
     }
@@ -1409,16 +1442,15 @@
       }
     }
 
+    const fromBroker = isBrokerSyncSource(source);
+
     walkJson(parsed, (object) => {
       if (looksLikeAccountSummary(object)) {
         rememberAccountContext(object);
+        return;
       }
 
-      const completedTrade =
-        extractCompletedTradeCandidate(object);
-
-      if (completedTrade) {
-        postCompletedTrade(completedTrade);
+      if (!fromBroker) {
         return;
       }
 
@@ -1437,129 +1469,7 @@
         rememberFill(brokerExecutionFill);
       }
     });
-
-    if (sourceUrl) {
-      console.debug(
-        "[TradeCoach] Scanned TradingView response.",
-        sourceUrl,
-      );
-    }
   }
-
-  async function inspectFetchResponse(response, requestUrl) {
-    try {
-      const contentType =
-        response.headers.get("content-type") || "";
-
-      if (
-        !contentType.includes("json") &&
-        !contentType.includes("text")
-      ) {
-        return;
-      }
-
-      const clone = response.clone();
-      const text = await clone.text();
-      processPayload(text, requestUrl);
-    } catch (error) {
-      console.debug(
-        "[TradeCoach] Could not inspect TradingView fetch response.",
-        error,
-      );
-    }
-  }
-
-  async function handleSocketMessage(raw, sourceUrl) {
-    let data = raw;
-
-    if (typeof Blob !== "undefined" && data instanceof Blob) {
-      try {
-        data = await data.text();
-      } catch {
-        return;
-      }
-    }
-
-    for (const chunk of extractPayloadsFromSocketData(data)) {
-      if (chunk === null || chunk === undefined) {
-        continue;
-      }
-
-      processPayload(chunk, sourceUrl);
-    }
-  }
-
-  const nativeFetch = window.fetch.bind(window);
-
-  const NativeWebSocket = window.WebSocket;
-
-  if (NativeWebSocket) {
-    const PatchedWebSocket = new Proxy(NativeWebSocket, {
-      construct(Target, args) {
-        const socket = Reflect.construct(Target, args);
-
-        socket.addEventListener("message", (event) => {
-          window.__TRADECOACH_TV_STATS__.wsMessages += 1;
-
-          void handleSocketMessage(
-            event.data,
-            socket.url || String(args[0] || ""),
-          );
-        });
-
-        return socket;
-      },
-    });
-
-    window.WebSocket = PatchedWebSocket;
-  }
-
-  window.fetch = async function patchedFetch(input, init) {
-    const response = await nativeFetch(input, init);
-    const requestUrl =
-      typeof input === "string"
-        ? input
-        : input?.url || "";
-
-    if (
-      requestUrl.includes("tradingview.com") ||
-      window.location.hostname.includes("tradingview")
-    ) {
-      void inspectFetchResponse(response, requestUrl);
-    }
-
-    return response;
-  };
-
-  const NativeXHR = window.XMLHttpRequest;
-
-  function PatchedXHR() {
-    const xhr = new NativeXHR();
-    let requestUrl = "";
-
-    const nativeOpen = xhr.open;
-
-    xhr.open = function open(method, url, ...rest) {
-      requestUrl = String(url || "");
-      return nativeOpen.call(xhr, method, url, ...rest);
-    };
-
-    xhr.addEventListener("load", function onLoad() {
-      if (
-        !requestUrl.includes("tradingview.com") &&
-        !window.location.hostname.includes("tradingview")
-      ) {
-        return;
-      }
-
-      processPayload(xhr.responseText, requestUrl);
-    });
-
-    return xhr;
-  }
-
-  PatchedXHR.prototype = NativeXHR.prototype;
-  window.XMLHttpRequest = PatchedXHR;
 
   const hookedBrokers = new WeakSet();
   const hookedBrokerList = [];
@@ -1587,38 +1497,6 @@
     }
 
     return matches;
-  }
-
-  async function syncBrokerOrders(broker, includeHistory = false) {
-    const batches = [];
-
-    if (includeHistory) {
-      try {
-        if (typeof broker.ordersHistory === "function") {
-          batches.push(await broker.ordersHistory());
-        }
-      } catch {
-        // Ignore broker history errors.
-      }
-    }
-
-    try {
-      if (typeof broker.orders === "function") {
-        batches.push(await broker.orders());
-      }
-    } catch {
-      // Ignore broker order errors.
-    }
-
-    for (const batch of batches) {
-      if (!Array.isArray(batch)) {
-        continue;
-      }
-
-      for (const order of batch) {
-        processPayload(order, "broker-api");
-      }
-    }
   }
 
   async function bootstrapBrokerAccounts(broker) {
@@ -1694,26 +1572,6 @@
 
     void bootstrapBrokerAccounts(broker);
 
-    for (const methodName of [
-      "placeOrder",
-      "modifyOrder",
-      "cancelOrder",
-    ]) {
-      if (typeof broker[methodName] !== "function") {
-        continue;
-      }
-
-      const nativeMethod = broker[methodName].bind(broker);
-
-      broker[methodName] = async (...args) => {
-        const result = await nativeMethod(...args);
-        window.setTimeout(() => {
-          void syncBrokerOrders(broker, false);
-        }, 750);
-        return result;
-      };
-    }
-
     const host = broker._host || broker.host;
 
     if (
@@ -1749,8 +1607,6 @@
         return nativeExecutionUpdate(symbol, execution);
       };
     }
-
-    void syncBrokerOrders(broker, false);
   }
 
   function discoverAndHookBrokers() {
@@ -1766,6 +1622,6 @@
   discoverAndHookBrokers();
 
   console.info(
-    "[TradeCoach] TradingView trade sync bridge active v0.9.7 (strict fills + broker API).",
+    "[TradeCoach] TradingView trade sync bridge active v0.9.8 (live broker fills only).",
   );
 })();
