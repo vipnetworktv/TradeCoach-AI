@@ -20,8 +20,8 @@ type TradeCoachLogoProps = {
 
 const sizeConfig = {
   sidebar: {
-    heightClass: "h-[52px]",
-    maxWidthClass: "max-w-[260px]",
+    heightClass: "h-9",
+    maxWidthClass: "w-full max-w-[200px]",
   },
   nav: {
     heightClass: "h-11 sm:h-12",
