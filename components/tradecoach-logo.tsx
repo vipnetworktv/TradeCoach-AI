@@ -3,9 +3,13 @@ import Link from "next/link";
 
 export const TRADECOACH_LOGO_PNG = "/brand/tradecoach-ai-logo.png";
 
-/** Native pixel size of `public/brand/tradecoach-ai-logo.png`. */
-export const TRADECOACH_LOGO_WIDTH = 899;
-export const TRADECOACH_LOGO_HEIGHT = 193;
+/** Uploaded master canvas (unchanged file). */
+export const TRADECOACH_LOGO_WIDTH = 2000;
+export const TRADECOACH_LOGO_HEIGHT = 2000;
+
+/** Visible artwork area inside the master canvas. */
+const LOGO_ART_WIDTH = 1737;
+const LOGO_ART_HEIGHT = 339;
 
 type TradeCoachLogoProps = {
   href?: string;
@@ -16,19 +20,24 @@ type TradeCoachLogoProps = {
 
 const sizeConfig = {
   sidebar: {
-    className: "h-auto w-full max-w-[260px]",
+    heightClass: "h-[52px]",
+    maxWidthClass: "max-w-[260px]",
   },
   nav: {
-    className: "h-11 w-auto sm:h-12",
+    heightClass: "h-11 sm:h-12",
+    maxWidthClass: "",
   },
   footer: {
-    className: "h-auto w-full max-w-[300px]",
+    heightClass: "h-14",
+    maxWidthClass: "max-w-[300px]",
   },
   auth: {
-    className: "mx-auto h-auto w-full max-w-[340px]",
+    heightClass: "h-16 sm:h-[72px]",
+    maxWidthClass: "max-w-[340px]",
   },
   hero: {
-    className: "h-14 w-auto sm:h-16",
+    heightClass: "h-14 sm:h-16",
+    maxWidthClass: "",
   },
 } as const;
 
@@ -41,15 +50,24 @@ export default function TradeCoachLogo({
   const config = sizeConfig[size];
 
   const image = (
-    <Image
-      src={TRADECOACH_LOGO_PNG}
-      alt="TradeCoach AI — Your Personal Trading Coach"
-      width={TRADECOACH_LOGO_WIDTH}
-      height={TRADECOACH_LOGO_HEIGHT}
-      priority={priority}
-      unoptimized
-      className={`${config.className} ${className}`.trim()}
-    />
+    <span
+      className={`relative inline-block overflow-hidden align-middle ${config.heightClass} ${config.maxWidthClass} ${className}`.trim()}
+      style={{ aspectRatio: `${LOGO_ART_WIDTH} / ${LOGO_ART_HEIGHT}` }}
+    >
+      <Image
+        src={TRADECOACH_LOGO_PNG}
+        alt="TradeCoach AI — Your Personal Trading Coach"
+        width={TRADECOACH_LOGO_WIDTH}
+        height={TRADECOACH_LOGO_HEIGHT}
+        priority={priority}
+        unoptimized
+        className="absolute left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2"
+        style={{
+          height: `calc(100% * ${TRADECOACH_LOGO_HEIGHT} / ${LOGO_ART_HEIGHT})`,
+          width: "auto",
+        }}
+      />
+    </span>
   );
 
   if (!href) {
