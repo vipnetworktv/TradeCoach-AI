@@ -36,12 +36,24 @@
         font-size: 20px;
       }
 
-      .brand-logo {
-        display: block;
+      .brand-logo-wrap {
+        position: relative;
+        overflow: hidden;
         width: 100%;
-        max-width: 240px;
-        height: auto;
-        margin: 0 0 12px;
+        max-width: 220px;
+        height: 38px;
+        margin: 0 0 10px;
+        aspect-ratio: 1737 / 339;
+      }
+
+      .brand-logo {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        max-width: none;
+        width: auto;
+        height: calc(100% * 2000 / 339);
+        transform: translate(-50%, -50%);
       }
 
       .subtitle {
@@ -252,11 +264,13 @@
   </head>
 
   <body>
-    <img
-      class="brand-logo"
-      src="logo.png"
-      alt="TradeCoach AI — Your Personal Trading Coach"
-    />
+    <div class="brand-logo-wrap">
+      <img
+        class="brand-logo"
+        src="logo.png"
+        alt="TradeCoach AI — Your Personal Trading Coach"
+      />
+    </div>
 
     <p class="subtitle">
       TradeCoach Sync automatically syncs and grades your TradingView trades.
