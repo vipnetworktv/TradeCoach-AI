@@ -2719,6 +2719,29 @@ async def find_semantic_duplicate_trade(
     return None
 
 
+async def get_active_trading_profile_id(
+    user_id: str,
+) -> str | None:
+    rows = await supabase_get(
+        "trading_profiles",
+        params={
+            "select": "id",
+            "user_id": f"eq.{user_id}",
+            "is_active": "eq.true",
+            "limit": "1",
+        },
+    )
+
+    if not rows:
+        return None
+
+    profile_id = first_string(
+        rows[0].get("id"),
+    )
+
+    return profile_id
+
+
 async def process_completed_trade_event(
     *,
     event: BrokerSyncEvent,
@@ -2901,12 +2924,19 @@ async def process_completed_trade_event(
 
     now_iso = utc_now().isoformat()
 
+    trading_profile_id = await get_active_trading_profile_id(
+        device["user_id"],
+    )
+
     completed_trade = {
         "user_id":
             device["user_id"],
 
         "device_id":
             device["id"],
+
+        "trading_profile_id":
+            trading_profile_id,
 
         "broker":
             event.broker,

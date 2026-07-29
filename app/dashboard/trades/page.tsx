@@ -57,6 +57,7 @@ type BrokerCompletedTrade = {
   exit_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  trading_profile_id?: string | null;
 
   [key: string]: unknown;
 };
@@ -604,11 +605,13 @@ export default function TradesPage() {
         trades,
         activeProfile,
         tradingProfiles,
+        { profilesLoading: tradingProfilesLoading },
       );
     }, [
       trades,
       activeProfile,
       tradingProfiles,
+      tradingProfilesLoading,
     ]);
 
   const accountOptions =

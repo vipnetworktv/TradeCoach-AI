@@ -16,7 +16,46 @@ type TradeTimestampFields = {
   entry_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  trading_profile_id?: string | null;
 };
+
+type FilterTradesOptions = {
+  profilesLoading?: boolean;
+};
+
+export function tradeBelongsToTradingProfile<
+  T extends TradeTimestampFields,
+>(
+  trade: T,
+  profile: TradingProfile,
+  allProfiles: TradingProfile[],
+): boolean {
+  if (trade.trading_profile_id) {
+    return trade.trading_profile_id === profile.id;
+  }
+
+  const { startMs, endMs } = getProfileStatsWindow(
+    profile,
+    allProfiles,
+  );
+  const timestamp = getTradeTimestampForProfile(trade);
+
+  if (!timestamp) {
+    return (
+      profile.stats_started_at === LEGACY_PROFILE_STATS_START
+    );
+  }
+
+  const tradeTime = new Date(timestamp).getTime();
+
+  if (!Number.isFinite(tradeTime)) {
+    return (
+      profile.stats_started_at === LEGACY_PROFILE_STATS_START
+    );
+  }
+
+  return tradeTime >= startMs && tradeTime < endMs;
+}
 
 export function getTradeTimestampForProfile(
   trade: TradeTimestampFields,
@@ -76,35 +115,15 @@ export function filterTradesForTradingProfile<
   trades: T[],
   profile: TradingProfile | null,
   allProfiles: TradingProfile[],
+  options?: FilterTradesOptions,
 ): T[] {
-  if (!profile) {
-    return trades;
+  if (options?.profilesLoading || !profile) {
+    return [];
   }
 
-  const { startMs, endMs } = getProfileStatsWindow(
-    profile,
-    allProfiles,
+  return trades.filter((trade) =>
+    tradeBelongsToTradingProfile(trade, profile, allProfiles),
   );
-
-  return trades.filter((trade) => {
-    const timestamp = getTradeTimestampForProfile(trade);
-
-    if (!timestamp) {
-      return (
-        profile.stats_started_at === LEGACY_PROFILE_STATS_START
-      );
-    }
-
-    const tradeTime = new Date(timestamp).getTime();
-
-    if (!Number.isFinite(tradeTime)) {
-      return (
-        profile.stats_started_at === LEGACY_PROFILE_STATS_START
-      );
-    }
-
-    return tradeTime >= startMs && tradeTime < endMs;
-  });
 }
 
 export function formatTradingProfileStartedAt(

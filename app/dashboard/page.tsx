@@ -388,8 +388,9 @@ export default function DashboardPage() {
         trades,
         activeProfile,
         tradingProfiles,
+        { profilesLoading: tradingProfilesLoading },
       ),
-    [trades, activeProfile, tradingProfiles],
+    [trades, activeProfile, tradingProfiles, tradingProfilesLoading],
   );
 
   const [errorMessage, setErrorMessage] = useState<
@@ -885,7 +886,7 @@ export default function DashboardPage() {
               </thead>
 
               <tbody>
-                {loading ? (
+                {loading || tradingProfilesLoading ? (
                   <tr>
                     <td
                       colSpan={4}
@@ -896,7 +897,9 @@ export default function DashboardPage() {
                   </tr>
                 ) : null}
 
-                {!loading && recentTrades.length === 0 ? (
+                {!loading &&
+                !tradingProfilesLoading &&
+                recentTrades.length === 0 ? (
                   <tr>
                     <td
                       colSpan={4}
@@ -914,7 +917,7 @@ export default function DashboardPage() {
                   </tr>
                 ) : null}
 
-                {!loading
+                {!loading && !tradingProfilesLoading
                   ? recentTrades.map((trade, index) => {
                       const side = formatSide(
                         trade.direction,
