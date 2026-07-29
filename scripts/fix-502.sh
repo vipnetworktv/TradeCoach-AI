@@ -59,7 +59,7 @@ pm2 save
 
 echo
 echo "==> Waiting for local services"
-if ! wait_for_http "http://127.0.0.1:${APP_PORT}/api/health" "Next.js on :${APP_PORT}"; then
+if ! wait_for_http "http://127.0.0.1:${APP_PORT}/" "Next.js on :${APP_PORT}"; then
   pm2 logs tradecoach --lines 40 --nostream || true
   exit 1
 fi

@@ -73,7 +73,7 @@ echo "Installed ${CRON_FILE}"
 echo
 echo "==> Step 6: Wait for services"
 for i in $(seq 1 20); do
-  if curl -sf -o /dev/null "http://127.0.0.1:${APP_PORT}/api/health" && \
+  if curl -sf -o /dev/null "http://127.0.0.1:${APP_PORT}/" && \
      curl -sf -o /dev/null "http://127.0.0.1:${API_PORT}/health"; then
     echo "OK: TradeCoach is healthy"
     break

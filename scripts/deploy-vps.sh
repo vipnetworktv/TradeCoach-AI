@@ -107,7 +107,7 @@ pm2_start_or_reload tradecoach-api tradecoach-api
 pm2 save
 
 echo "==> Waiting for services to come back"
-if ! wait_for_port "$APP_PORT" "Next.js app" "/api/health"; then
+if ! wait_for_port "$APP_PORT" "Next.js app"; then
   echo
   echo "Recent app logs:"
   pm2 logs tradecoach --lines 40 --nostream || true

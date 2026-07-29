@@ -28,7 +28,7 @@ fi
 
 echo
 echo "==> Port checks"
-curl -s -o /dev/null -w "Next.js :${APP_PORT}/api/health → HTTP %{http_code}\n" "http://127.0.0.1:${APP_PORT}/api/health" || echo "Next.js not responding on :${APP_PORT}"
+curl -s -o /dev/null -w "Next.js :${APP_PORT}/ → HTTP %{http_code}\n" "http://127.0.0.1:${APP_PORT}/" || echo "Next.js not responding on :${APP_PORT}"
 curl -s -o /dev/null -w "API :${API_PORT}/health → HTTP %{http_code}\n" "http://127.0.0.1:${API_PORT}/health" || echo "API not responding on :${API_PORT}"
 
 echo

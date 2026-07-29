@@ -28,7 +28,7 @@ recover_process() {
 web_ok=0
 api_ok=0
 
-if curl -sf -o /dev/null "http://127.0.0.1:${APP_PORT}/api/health"; then
+if curl -sf -o /dev/null "http://127.0.0.1:${APP_PORT}/"; then
   web_ok=1
 fi
 
@@ -41,7 +41,7 @@ if [ "$web_ok" -eq 1 ] && [ "$api_ok" -eq 1 ]; then
 fi
 
 if [ "$web_ok" -eq 0 ]; then
-  log "Next.js unhealthy on :${APP_PORT}/api/health"
+  log "Next.js unhealthy on :${APP_PORT}/"
   recover_process tradecoach
 fi
 
@@ -54,7 +54,7 @@ pm2 save
 
 sleep 3
 
-if curl -sf -o /dev/null "http://127.0.0.1:${APP_PORT}/api/health"; then
+if curl -sf -o /dev/null "http://127.0.0.1:${APP_PORT}/"; then
   log "Recovery OK: Next.js is back"
 else
   log "Recovery FAILED: Next.js still down — run bash scripts/fix-502.sh"
