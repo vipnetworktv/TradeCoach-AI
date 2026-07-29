@@ -4,8 +4,8 @@ import Link from "next/link";
 export const TRADECOACH_LOGO_PNG = "/brand/tradecoach-ai-logo.png";
 
 /** Native pixel size of `public/brand/tradecoach-ai-logo.png`. */
-export const TRADECOACH_LOGO_WIDTH = 901;
-export const TRADECOACH_LOGO_HEIGHT = 197;
+export const TRADECOACH_LOGO_WIDTH = 899;
+export const TRADECOACH_LOGO_HEIGHT = 193;
 
 type TradeCoachLogoProps = {
   href?: string;
@@ -16,19 +16,19 @@ type TradeCoachLogoProps = {
 
 const sizeConfig = {
   sidebar: {
-    className: "h-auto w-full max-w-[240px]",
+    className: "h-auto w-full max-w-[260px]",
   },
   nav: {
-    className: "h-10 w-auto sm:h-11",
+    className: "h-11 w-auto sm:h-12",
   },
   footer: {
-    className: "h-auto w-full max-w-[280px]",
+    className: "h-auto w-full max-w-[300px]",
   },
   auth: {
-    className: "mx-auto h-auto w-full max-w-[320px]",
+    className: "mx-auto h-auto w-full max-w-[340px]",
   },
   hero: {
-    className: "h-12 w-auto sm:h-14",
+    className: "h-14 w-auto sm:h-16",
   },
 } as const;
 
@@ -47,14 +47,7 @@ export default function TradeCoachLogo({
       width={TRADECOACH_LOGO_WIDTH}
       height={TRADECOACH_LOGO_HEIGHT}
       priority={priority}
-      quality={100}
-      sizes={
-        size === "nav" || size === "hero"
-          ? "(max-width: 640px) 180px, 220px"
-          : size === "sidebar"
-            ? "240px"
-            : "(max-width: 640px) 280px, 320px"
-      }
+      unoptimized
       className={`${config.className} ${className}`.trim()}
     />
   );
