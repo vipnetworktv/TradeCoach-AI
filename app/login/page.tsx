@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
+import TradeCoachLogo from "@/components/tradecoach-logo";
+
 import {
   getVerifiedTotpFactorId,
   isMfaVerificationRequired,
@@ -159,9 +161,7 @@ export default function LoginPage() {
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-6xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-2xl shadow-cyan-500/5 lg:grid-cols-2">
           <section className="hidden border-r border-slate-800 bg-slate-950/70 p-12 lg:flex lg:flex-col lg:justify-between">
-            <Link href="/" className="text-2xl font-extrabold">
-              TradeCoach <span className="text-cyan-400">AI</span>
-            </Link>
+            <TradeCoachLogo size="auth" className="mx-0 max-w-[240px]" />
 
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-400">
@@ -190,9 +190,9 @@ export default function LoginPage() {
 
           <section className="p-6 sm:p-10 lg:p-12">
             <div className="mx-auto max-w-md">
-              <Link href="/" className="text-2xl font-extrabold lg:hidden">
-                TradeCoach <span className="text-cyan-400">AI</span>
-              </Link>
+              <div className="lg:hidden">
+                <TradeCoachLogo size="auth" />
+              </div>
 
               {step === "credentials" ? (
                 <>

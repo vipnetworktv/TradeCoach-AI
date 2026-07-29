@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import TradeCoachLogo from "@/components/tradecoach-logo";
+
 type NavbarProps = {
   isAuthenticated?: boolean;
   hasSubscriptionAccess?: boolean;
@@ -12,9 +14,7 @@ export default function Navbar({
   return (
     <nav className="border-b border-slate-800/80">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-        <Link href="/" className="text-xl font-bold">
-          TradeCoach <span className="text-cyan-400">AI</span>
-        </Link>
+        <TradeCoachLogo size="nav" priority />
 
         <div className="hidden items-center gap-8 text-sm text-slate-300 md:flex">
           <a className="transition hover:text-cyan-400" href="#features">

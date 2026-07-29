@@ -1,3 +1,5 @@
+import TradeCoachLogo from "@/components/tradecoach-logo";
+
 export default function Footer() {
     const year = new Date().getFullYear();
   
@@ -7,11 +9,9 @@ export default function Footer() {
           <div className="flex flex-col items-center justify-between gap-10 md:flex-row">
             {/* Logo */}
             <div>
-              <h2 className="text-2xl font-bold">
-                TradeCoach <span className="text-cyan-400">AI</span>
-              </h2>
-  
-              <p className="mt-3 max-w-sm leading-7 text-slate-400">
+              <TradeCoachLogo size="footer" />
+
+              <p className="mt-4 max-w-sm leading-7 text-slate-400">
                 AI-powered coaching built around your real trading history.
                 Discover your strengths, eliminate your weaknesses, and become a
                 more consistent trader.

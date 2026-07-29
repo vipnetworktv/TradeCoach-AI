@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 import CoachAiQuickChat from "@/components/coach-ai-quick-chat";
+import TradeCoachLogo from "@/components/tradecoach-logo";
 import DailyLossLimitMonitor from "@/components/daily-loss-limit-monitor";
 import DashboardNav from "@/components/dashboard-nav";
 import ExtensionInstallOnboarding from "@/components/extension-install-onboarding";
@@ -85,13 +86,7 @@ export default async function DashboardLayout({
       <div className="flex min-h-screen">
         <aside className="hidden w-72 shrink-0 border-r border-slate-800 bg-slate-950 lg:flex lg:flex-col">
           <div className="border-b border-slate-800 px-8 py-6">
-            <Link href="/" className="text-2xl font-bold">
-              TradeCoach <span className="text-cyan-400">AI</span>
-            </Link>
-
-            <p className="mt-2 text-sm text-slate-500">
-              Your personal trading coach
-            </p>
+            <TradeCoachLogo size="sidebar" />
           </div>
 
           <DashboardNav variant="sidebar" />
