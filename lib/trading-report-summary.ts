@@ -303,15 +303,4 @@ export function buildTradingReportSummary(
   };
 }
 
-export function getAppBaseUrl() {
-  if (process.env.NEXT_PUBLIC_APP_URL?.trim()) {
-    return process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/$/, "");
-  }
-
-  if (process.env.VERCEL_URL?.trim()) {
-    const host = process.env.VERCEL_URL.trim().replace(/^https?:\/\//, "");
-    return `https://${host}`;
-  }
-
-  return "http://localhost:3000";
-}
+export { getAppBaseUrl } from "@/lib/app-url";

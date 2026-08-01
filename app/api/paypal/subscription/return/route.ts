@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getAppBaseUrl } from "@/lib/app-url";
 import { createClient } from "@/lib/supabase/server";
 import { tryCreateAdminClient } from "@/lib/supabase/admin";
 import { syncPayPalSubscriptionForUser } from "@/lib/subscription";
@@ -39,27 +40,29 @@ export async function GET(request: NextRequest) {
       error: userError,
     } = await supabase.auth.getUser();
 
+    const appOrigin = getAppBaseUrl();
+
     if (userError || !user) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL("/login", appOrigin));
     }
 
     const subscriptionId = await resolvePayPalSubscriptionId(request, user.id);
 
     if (!subscriptionId) {
       return NextResponse.redirect(
-        new URL("/?subscribe=required&paypal=missing", request.url),
+        new URL("/?subscribe=required&paypal=missing", appOrigin),
       );
     }
 
     await syncPayPalSubscriptionForUser(user.id, subscriptionId);
 
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/dashboard", appOrigin));
   } catch (error) {
     if (error instanceof Error && error.message) {
       errorMessage = error.message;
     }
 
-    const redirectUrl = new URL("/?subscribe=required&paypal=error", request.url);
+    const redirectUrl = new URL("/?subscribe=required&paypal=error", getAppBaseUrl());
     redirectUrl.searchParams.set("message", errorMessage.slice(0, 180));
 
     return NextResponse.redirect(redirectUrl);

@@ -1,3 +1,5 @@
+import { getAppBaseUrl } from "@/lib/app-url";
+
 const PAYPAL_SANDBOX_API = "https://api-m.sandbox.paypal.com";
 const PAYPAL_LIVE_API = "https://api-m.paypal.com";
 
@@ -47,14 +49,6 @@ function getPayPalCredentials() {
 
 function getPayPalModeLabel() {
   return process.env.PAYPAL_MODE === "live" ? "live" : "sandbox";
-}
-
-function getAppBaseUrl() {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.FRONTEND_URL ||
-    "http://localhost:3000"
-  ).replace(/\/$/, "");
 }
 
 export async function getPayPalAccessToken() {

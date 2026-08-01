@@ -33,6 +33,11 @@ if [ ! -f .env.local ]; then
   exit 1
 fi
 
+echo "==> Checking app URL in .env.local"
+if ! grep -E '^NEXT_PUBLIC_APP_URL=https://tradecoachai.org/?$' .env.local >/dev/null 2>&1; then
+  echo "Warning: add NEXT_PUBLIC_APP_URL=https://tradecoachai.org to .env.local (PayPal redirects use this)."
+fi
+
 NESTED_CLONE="$APP_DIR/tradecoach"
 if [ -f "$NESTED_CLONE/package.json" ] && [ "$NESTED_CLONE" != "$APP_DIR" ]; then
   echo "==> Removing duplicate nested clone: $NESTED_CLONE"
