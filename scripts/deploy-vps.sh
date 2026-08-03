@@ -90,7 +90,7 @@ if pm2 describe tradecoach >/dev/null 2>&1; then
   pm2 stop tradecoach || true
 fi
 
-echo "==> Building Next.js app (webpack, no extension zip — saves VPS memory)"
+echo "==> Building Next.js app (webpack; extension zip packaged separately)"
 export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1024}"
 if ! npm run build:app; then
   echo
@@ -104,6 +104,11 @@ if [ ! -f .next/BUILD_ID ] || [ ! -f .next/prerender-manifest.json ]; then
   echo "Build failed: incomplete .next output."
   pm2 start tradecoach 2>/dev/null || pm2 start ecosystem.config.cjs --only tradecoach 2>/dev/null || true
   exit 1
+fi
+
+echo "==> Packaging Chrome extension download zip"
+if ! npm run package:extension; then
+  echo "Warning: extension zip packaging failed — site download may stay stale."
 fi
 
 echo "==> Restarting PM2 processes"
