@@ -6,7 +6,7 @@ function readCustomEvents(customEventsPath) {
   try {
     const data = JSON.parse(fs.readFileSync(customEventsPath, 'utf8'));
     return Array.isArray(data) ? data : [];
-  } catch {
+  } catch (err) {
     return [];
   }
 }
@@ -18,381 +18,362 @@ function writeCustomEvents(customEventsPath, events) {
 }
 
 function renderAdminEventsPage() {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VIPFLIX Exclusive Events</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
-      background: #0b1020;
-      color: #e5e7eb;
-      line-height: 1.5;
-    }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
-    h1 { margin: 0 0 8px; font-size: 1.75rem; }
-    .sub { color: #94a3b8; margin-bottom: 24px; }
-    .toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-    button, .btn {
-      border: 0; border-radius: 10px; padding: 10px 16px;
-      font-weight: 600; cursor: pointer;
-    }
-    .primary { background: #2563eb; color: #fff; }
-    .secondary { background: #1e293b; color: #e2e8f0; }
-    .danger { background: #7f1d1d; color: #fecaca; }
-    .success { background: #065f46; color: #d1fae5; }
-    .reorder { background: #334155; color: #e2e8f0; padding: 8px 12px; }
-    .reorder:disabled { opacity: 0.4; cursor: not-allowed; }
-    .grid { display: grid; gap: 16px; }
-    .card {
-      background: #111827; border: 1px solid #1f2937; border-radius: 14px;
-      padding: 16px; display: grid; gap: 12px;
-    }
-    .card-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
-    .card-title { font-size: 1.1rem; font-weight: 700; }
-    .card-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
-    .muted { color: #94a3b8; font-size: 0.9rem; }
-    .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
-    label { display: grid; gap: 6px; font-size: 0.85rem; color: #cbd5e1; }
-    input, textarea, select {
-      width: 100%; padding: 10px 12px; border-radius: 8px;
-      border: 1px solid #334155; background: #0f172a; color: #f8fafc;
-    }
-    textarea { min-height: 72px; resize: vertical; }
-    .time-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr minmax(90px, 1.2fr);
-      gap: 8px;
-    }
-    .thumb-preview {
-      width: 120px; height: 68px; object-fit: cover; border-radius: 8px;
-      background: #0f172a; border: 1px solid #334155;
-    }
-    .status { min-height: 24px; margin-top: 12px; }
-    .help {
-      background: #172554; border: 1px solid #1d4ed8; border-radius: 12px;
-      padding: 14px 16px; margin-bottom: 20px; color: #dbeafe; font-size: 0.92rem;
-    }
-    code { background: #0f172a; padding: 2px 6px; border-radius: 6px; }
-    .empty { padding: 32px; text-align: center; color: #94a3b8; border: 1px dashed #334155; border-radius: 12px; }
-    .footer-row { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>VIPFLIX Exclusive Events</h1>
-    <p class="sub">These show in the app Sports tab under <strong>Exclusive Events</strong>. Saved to <code>data/custom-events.json</code>.</p>
+  // Keep this page as plain strings (no nested template literals) so deploys
+  // via copy/paste or shell heredoc cannot corrupt the file and crash Node.
+  const css = [
+    '* { box-sizing: border-box; }',
+    'body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; background: #0b1020; color: #e5e7eb; line-height: 1.5; }',
+    '.wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }',
+    'h1 { margin: 0 0 8px; font-size: 1.75rem; }',
+    '.sub { color: #94a3b8; margin-bottom: 24px; }',
+    '.toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }',
+    'button, .btn { border: 0; border-radius: 10px; padding: 10px 16px; font-weight: 600; cursor: pointer; }',
+    '.primary { background: #2563eb; color: #fff; }',
+    '.secondary { background: #1e293b; color: #e2e8f0; }',
+    '.danger { background: #7f1d1d; color: #fecaca; }',
+    '.success { background: #065f46; color: #d1fae5; }',
+    '.reorder { background: #334155; color: #e2e8f0; padding: 8px 12px; }',
+    '.reorder:disabled { opacity: 0.4; cursor: not-allowed; }',
+    '.grid { display: grid; gap: 16px; }',
+    '.card { background: #111827; border: 1px solid #1f2937; border-radius: 14px; padding: 16px; display: grid; gap: 12px; }',
+    '.card-head { display: flex; justify-content: space-between; gap: 12px; align-items: start; }',
+    '.card-title { font-size: 1.1rem; font-weight: 700; }',
+    '.card-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }',
+    '.muted { color: #94a3b8; font-size: 0.9rem; }',
+    '.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }',
+    'label { display: grid; gap: 6px; font-size: 0.85rem; color: #cbd5e1; }',
+    'input, textarea, select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #f8fafc; }',
+    'textarea { min-height: 72px; resize: vertical; }',
+    '.time-row { display: grid; grid-template-columns: 1fr 1fr 1fr minmax(90px, 1.2fr); gap: 8px; }',
+    '.thumb-preview { width: 120px; height: 68px; object-fit: cover; border-radius: 8px; background: #0f172a; border: 1px solid #334155; }',
+    '.status { min-height: 24px; margin-top: 12px; }',
+    '.help { background: #172554; border: 1px solid #1d4ed8; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; color: #dbeafe; font-size: 0.92rem; }',
+    'code { background: #0f172a; padding: 2px 6px; border-radius: 6px; }',
+    '.empty { padding: 32px; text-align: center; color: #94a3b8; border: 1px dashed #334155; border-radius: 12px; }',
+    '.footer-row { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; }'
+  ].join('\n');
 
-    <div class="help">
-      <strong>Channel ID</strong> = your Xtream <strong>stream ID</strong> (numeric <code>streams.id</code> from XUI).
-      When a user taps the event, the app plays that channel. Leave blank only if you want title-only promos.
-      Use the <strong>↑ / ↓</strong> buttons to set the order shown in the app.
-      <br/><br/>
-      Set time with the <strong>12-hour</strong> controls (AM/PM). It is saved as 24-hour <code>HH:mm</code> (e.g. 8:00 PM → <code>20:00</code>) so the app shows PM correctly and does not mark tonight’s games as ENDED.
-      After updating this file, open each event, confirm AM/PM, then click <strong>Save All</strong>.
-    </div>
+  const clientJs = [
+    'var events = [];',
+    '',
+    'function blankEvent() {',
+    '  return {',
+    "    title: '',",
+    "    league: '',",
+    "    channel_id: '',",
+    "    thumbnail: '',",
+    "    date: '',",
+    "    time: '',",
+    '    durationHours: 7,',
+    '    enabled: true,',
+    "    description: '',",
+    "    color: ''",
+    '  };',
+    '}',
+    '',
+    'function esc(value) {',
+    "  return String(value == null ? '' : value)",
+    "    .replace(/&/g, '&amp;')",
+    '    .replace(/"/g, "&quot;")',
+    "    .replace(/</g, '&lt;');",
+    '}',
+    '',
+    'function pad2(n) {',
+    "  return String(n).padStart(2, '0');",
+    '}',
+    '',
+    'function parseTime12(raw) {',
+    "  var empty = { hour: '', minute: '00', ampm: 'PM', tz: 'EST' };",
+    "  var s = String(raw || '').trim();",
+    '  if (!s) return empty;',
+    '',
+    '  var hour24 = null;',
+    '  var minute = 0;',
+    '  var tz = "EST";',
+    '  var m;',
+    '',
+    '  // 24h: 22:00 or 22:00 EST',
+    '  m = s.match(/^(\\d{1,2}):(\\d{2})\\s*([A-Za-z]{2,5})?$/);',
+    '  if (m && !/am|pm/i.test(s)) {',
+    '    hour24 = Number(m[1]);',
+    '    minute = Number(m[2]);',
+    '    if (m[3]) tz = m[3].toUpperCase();',
+    '  }',
+    '',
+    '  // 12h with colon: 10:30 PM EST',
+    '  if (hour24 === null) {',
+    '    m = s.match(/^(\\d{1,2}):(\\d{2})\\s*(AM|PM)\\s*([A-Za-z]{2,5})?$/i);',
+    '    if (m) {',
+    '      var h1 = Number(m[1]);',
+    '      minute = Number(m[2]);',
+    '      var ap1 = m[3].toUpperCase();',
+    '      if (m[4]) tz = m[4].toUpperCase();',
+    "      hour24 = ap1 === 'AM' ? (h1 === 12 ? 0 : h1) : (h1 === 12 ? 12 : h1 + 12);",
+    '    }',
+    '  }',
+    '',
+    '  // 12h compact: 10PM EST / 10 PM EST',
+    '  if (hour24 === null) {',
+    '    m = s.match(/^(\\d{1,2})\\s*(AM|PM)\\s*([A-Za-z]{2,5})?$/i);',
+    '    if (m) {',
+    '      var h2 = Number(m[1]);',
+    '      var ap2 = m[2].toUpperCase();',
+    '      if (m[3]) tz = m[3].toUpperCase();',
+    "      hour24 = ap2 === 'AM' ? (h2 === 12 ? 0 : h2) : (h2 === 12 ? 12 : h2 + 12);",
+    '    }',
+    '  }',
+    '',
+    '  if (hour24 === null || Number.isNaN(hour24)) {',
+    '    return { hour: empty.hour, minute: empty.minute, ampm: empty.ampm, tz: tz };',
+    '  }',
+    '',
+    '  var isPm = hour24 >= 12;',
+    '  var hour12 = hour24 % 12;',
+    '  if (hour12 === 0) hour12 = 12;',
+    '',
+    '  return {',
+    '    hour: String(hour12),',
+    '    minute: pad2(Math.min(59, Math.max(0, minute || 0))),',
+    "    ampm: isPm ? 'PM' : 'AM',",
+    "    tz: tz || 'EST'",
+    '  };',
+    '}',
+    '',
+    '/** App expects 24h HH:mm -- it splits on ":" and ignores AM/PM words. */',
+    'function formatTimeForApp(hour, minute, ampm) {',
+    "  if (!hour) return '';",
+    '  var h = Number(hour);',
+    '  if (Number.isNaN(h) || h < 1 || h > 12) return "";',
+    "  var ap = (ampm || 'PM').toUpperCase();",
+    "  if (ap === 'AM') h = h === 12 ? 0 : h;",
+    '  else h = h === 12 ? 12 : h + 12;',
+    '  return pad2(h) + ":" + pad2(minute || 0);',
+    '}',
+    '',
+    'function formatTimeLabel12(hour, minute, ampm) {',
+    "  if (!hour) return '';",
+    "  return Number(hour) + ':' + pad2(minute || 0) + ' ' + (ampm || 'PM').toUpperCase();",
+    '}',
+    '',
+    'function hourOptions(selected) {',
+    '  var html = "";',
+    '  for (var i = 1; i <= 12; i++) {',
+    '    var v = String(i);',
+    '    html += "<option value=\\"" + v + "\\"" + (selected === v ? " selected" : "") + ">" + v + "</option>";',
+    '  }',
+    '  return html;',
+    '}',
+    '',
+    'function minuteOptions(selected) {',
+    '  var html = "";',
+    '  for (var i = 0; i < 60; i++) {',
+    '    var v = pad2(i);',
+    '    html += "<option value=\\"" + v + "\\"" + (selected === v ? " selected" : "") + ">" + v + "</option>";',
+    '  }',
+    '  return html;',
+    '}',
+    '',
+    'function setStatus(msg, ok) {',
+    "  var el = document.getElementById('status');",
+    '  el.textContent = msg;',
+    "  el.style.color = ok ? '#86efac' : '#fca5a5';",
+    '}',
+    '',
+    'function render() {',
+    "  var root = document.getElementById('events');",
+    '  if (!events.length) {',
+    "    root.innerHTML = '<div class=\"empty\">No events yet. Click <strong>Add Event</strong>.</div>';",
+    '    return;',
+    '  }',
+    '',
+    '  var html = "";',
+    '  for (var i = 0; i < events.length; i++) {',
+    '    var ev = events[i];',
+    '    var t = parseTime12(ev.time);',
+    '    var saved = formatTimeForApp(t.hour, t.minute, t.ampm) || "-";',
+    '    var label = formatTimeLabel12(t.hour, t.minute, t.ampm) || "not set";',
+    '    var durationBit = ev.durationHours ? (" · " + esc(ev.durationHours) + "h") : "";',
+    '    html += \'<div class="card" data-index="\' + i + \'">\';',
+    '    html += \'<div class="card-head"><div>\';',
+    '    html += \'<div class="card-title">#\' + (i + 1) + \' · \' + esc(ev.title || "Untitled event") + \'</div>\';',
+    '    html += \'<div class="muted">\' + esc(ev.league || "No league") + \' · \' + esc(ev.date || "No date") + \' · \' + esc(ev.time || "No time") + durationBit + \'</div>\';',
+    '    html += \'</div><div class="card-actions">\';',
+    '    html += \'<button class="reorder" type="button" data-move="up" data-index="\' + i + \'"\' + (i === 0 ? " disabled" : "") + \' title="Move up">Up</button>\';',
+    '    html += \'<button class="reorder" type="button" data-move="down" data-index="\' + i + \'"\' + (i === events.length - 1 ? " disabled" : "") + \' title="Move down">Down</button>\';',
+    '    html += \'<img class="thumb-preview" src="\' + esc(ev.thumbnail || "") + \'" alt="" />\';',
+    '    html += \'</div></div><div class="fields">\';',
+    '    html += \'<label>Title<input data-field="title" value="\' + esc(ev.title) + \'" /></label>\';',
+    '    html += \'<label>League<input data-field="league" value="\' + esc(ev.league) + \'" placeholder="UFC, PPV, WWE..." /></label>\';',
+    '    html += \'<label>Channel ID (stream id)<input data-field="channel_id" value="\' + esc(ev.channel_id) + \'" placeholder="e.g. 12847" /></label>\';',
+    '    html += \'<label>Date<input data-field="date" value="\' + esc(ev.date) + \'" placeholder="2026-08-06" /></label>\';',
+    '    html += \'<label style="grid-column: span 2;">Time (12-hour)\';',
+    '    html += \'<div class="time-row">\';',
+    '    html += \'<select data-time="hour" aria-label="Hour"><option value="">Hour</option>\' + hourOptions(t.hour) + \'</select>\';',
+    '    html += \'<select data-time="minute" aria-label="Minute">\' + minuteOptions(t.minute) + \'</select>\';',
+    '    html += \'<select data-time="ampm" aria-label="AM/PM">\';',
+    '    html += \'<option value="AM"\' + (t.ampm === "AM" ? " selected" : "") + \'>AM</option>\';',
+    '    html += \'<option value="PM"\' + (t.ampm === "PM" ? " selected" : "") + \'>PM</option>\';',
+    '    html += \'</select>\';',
+    '    html += \'<input data-time="tz" value="\' + esc(t.tz) + \'" placeholder="EST" aria-label="Timezone note" title="Admin note only; app uses HH:mm" />\';',
+    '    html += \'</div>\';',
+    '    html += \'<span class="muted time-preview">Saved for app as <code>\' + esc(saved) + \'</code> · \' + esc(label) + \'</span>\';',
+    '    html += \'</label>\';',
+    '    html += \'<label>Duration (hours)<input data-field="durationHours" type="number" min="1" max="48" value="\' + (ev.durationHours == null ? 7 : ev.durationHours) + \'" placeholder="7" /></label>\';',
+    '    html += \'<label>Accent color<input data-field="color" value="\' + esc(ev.color) + \'" placeholder="#ff0000" /></label>\';',
+    '    html += \'<label style="grid-column: 1 / -1;">Thumbnail URL<input data-field="thumbnail" value="\' + esc(ev.thumbnail) + \'" /></label>\';',
+    '    html += \'<label style="grid-column: 1 / -1;">Description<textarea data-field="description">\' + esc(ev.description) + \'</textarea></label>\';',
+    '    html += \'<label>Enabled<select data-field="enabled">\';',
+    '    html += \'<option value="true"\' + (ev.enabled !== false ? " selected" : "") + \'>Yes</option>\';',
+    '    html += \'<option value="false"\' + (ev.enabled === false ? " selected" : "") + \'>No</option>\';',
+    '    html += \'</select></label></div>\';',
+    '    html += \'<div class="footer-row"><button class="danger" type="button" data-remove="\' + i + \'">Delete</button>\';',
+    '    html += \'<div class="muted">Order: \' + (i + 1) + \' of \' + events.length + \'</div></div></div>\';',
+    '  }',
+    '  root.innerHTML = html;',
+    '',
+    "  root.querySelectorAll('[data-field]').forEach(function (el) {",
+    "    el.addEventListener('input', syncFromDom);",
+    "    el.addEventListener('change', syncFromDom);",
+    '  });',
+    '',
+    "  root.querySelectorAll('[data-time]').forEach(function (el) {",
+    "    el.addEventListener('input', syncFromDom);",
+    "    el.addEventListener('change', syncFromDom);",
+    '  });',
+    '',
+    "  root.querySelectorAll('[data-remove]').forEach(function (btn) {",
+    "    btn.addEventListener('click', function () {",
+    '      syncFromDom();',
+    '      events.splice(Number(btn.getAttribute("data-remove")), 1);',
+    '      render();',
+    '    });',
+    '  });',
+    '',
+    "  root.querySelectorAll('[data-move]').forEach(function (btn) {",
+    "    btn.addEventListener('click', function () {",
+    '      var index = Number(btn.getAttribute("data-index"));',
+    '      var dir = btn.getAttribute("data-move");',
+    '      var target = dir === "up" ? index - 1 : index + 1;',
+    '      if (target < 0 || target >= events.length) return;',
+    '      syncFromDom();',
+    '      var tmp = events[index];',
+    '      events[index] = events[target];',
+    '      events[target] = tmp;',
+    '      render();',
+    '      setStatus("Order updated. Click Save All to keep it.", true);',
+    '    });',
+    '  });',
+    '}',
+    '',
+    'function syncFromDom() {',
+    "  var cards = document.querySelectorAll('.card');",
+    '  var nextEvents = [];',
+    '  for (var i = 0; i < cards.length; i++) {',
+    '    var card = cards[i];',
+    '    var next = Object.assign({}, events[i] || blankEvent());',
+    "    card.querySelectorAll('[data-field]').forEach(function (el) {",
+    '      var key = el.getAttribute("data-field");',
+    '      if (key === "enabled") next[key] = el.value === "true";',
+    '      else if (key === "durationHours") next[key] = parseFloat(el.value) || 7;',
+    '      else next[key] = el.value;',
+    '    });',
+    '    var hourEl = card.querySelector(\'[data-time="hour"]\');',
+    '    var minuteEl = card.querySelector(\'[data-time="minute"]\');',
+    '    var ampmEl = card.querySelector(\'[data-time="ampm"]\');',
+    '    var hour = hourEl ? hourEl.value : "";',
+    '    var minute = minuteEl ? minuteEl.value : "00";',
+    '    var ampm = ampmEl ? ampmEl.value : "PM";',
+    '    next.time = formatTimeForApp(hour, minute, ampm);',
+    "    var preview = card.querySelector('.time-preview');",
+    '    if (preview) {',
+    '      var saved = next.time || "-";',
+    '      var label = formatTimeLabel12(hour, minute, ampm) || "not set";',
+    '      preview.innerHTML = "Saved for app as <code>" + esc(saved) + "</code> · " + esc(label);',
+    '    }',
+    '    nextEvents.push(next);',
+    '  }',
+    '  events = nextEvents;',
+    '}',
+    '',
+    'function loadEvents() {',
+    "  return fetch('/api/custom-events')",
+    '    .then(function (res) { return res.json(); })',
+    '    .then(function (data) {',
+    '      events = Array.isArray(data) ? data : [];',
+    '      render();',
+    '      setStatus("Loaded " + events.length + " event(s).", true);',
+    '    });',
+    '}',
+    '',
+    'function saveEvents() {',
+    '  syncFromDom();',
+    "  return fetch('/api/custom-events', {",
+    '    method: "POST",',
+    '    headers: { "Content-Type": "application/json" },',
+    '    body: JSON.stringify(events)',
+    '  }).then(function (res) {',
+    '    if (!res.ok) throw new Error("Save failed");',
+    '    setStatus("Saved " + events.length + " event(s). App will pick these up on next refresh.", true);',
+    '  });',
+    '}',
+    '',
+    "document.getElementById('addBtn').addEventListener('click', function () {",
+    '  syncFromDom();',
+    '  events.push(blankEvent());',
+    '  render();',
+    '});',
+    "document.getElementById('reloadBtn').addEventListener('click', function () {",
+    '  loadEvents().catch(function (err) { setStatus(err.message, false); });',
+    '});',
+    "document.getElementById('saveBtn').addEventListener('click', function () {",
+    '  saveEvents().catch(function (err) { setStatus(err.message, false); });',
+    '});',
+    '',
+    'loadEvents().catch(function (err) { setStatus(err.message, false); });'
+  ].join('\n');
 
-    <div class="toolbar">
-      <button class="primary" id="addBtn" type="button">+ Add Event</button>
-      <button class="secondary" id="reloadBtn" type="button">Reload</button>
-      <button class="success" id="saveBtn" type="button">Save All</button>
-    </div>
-
-    <div id="events" class="grid"></div>
-    <div class="status muted" id="status"></div>
-  </div>
-
-  <script>
-    let events = [];
-
-    function blankEvent() {
-      return {
-        title: '',
-        league: '',
-        channel_id: '',
-        thumbnail: '',
-        date: '',
-        time: '',
-        durationHours: 7,
-        enabled: true,
-        description: '',
-        color: ''
-      };
-    }
-
-    function esc(value) {
-      return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;');
-    }
-
-    function pad2(n) {
-      return String(n).padStart(2, '0');
-    }
-
-    /** Parse stored time into 12-hour parts. Supports "10PM EST", "10:30 PM", "22:00", etc. */
-    function parseTime12(raw) {
-      const empty = { hour: '', minute: '00', ampm: 'PM', tz: 'EST' };
-      const s = String(raw || '').trim();
-      if (!s) return empty;
-
-      let hour24 = null;
-      let minute = 0;
-      let ampm = null;
-      let tz = 'EST';
-
-      // 24h: 22:00 or 22:00 EST
-      let m = s.match(/^(\\d{1,2}):(\\d{2})\\s*([A-Za-z]{2,5})?$/);
-      if (m && !/am|pm/i.test(s)) {
-        hour24 = Number(m[1]);
-        minute = Number(m[2]);
-        if (m[3]) tz = m[3].toUpperCase();
-      }
-
-      // 12h with colon: 10:30 PM EST
-      if (hour24 === null) {
-        m = s.match(/^(\\d{1,2}):(\\d{2})\\s*(AM|PM)\\s*([A-Za-z]{2,5})?$/i);
-        if (m) {
-          let h = Number(m[1]);
-          minute = Number(m[2]);
-          ampm = m[3].toUpperCase();
-          if (m[4]) tz = m[4].toUpperCase();
-          if (ampm === 'AM') hour24 = h === 12 ? 0 : h;
-          else hour24 = h === 12 ? 12 : h + 12;
-        }
-      }
-
-      // 12h compact: 10PM EST / 10 PM EST
-      if (hour24 === null) {
-        m = s.match(/^(\\d{1,2})\\s*(AM|PM)\\s*([A-Za-z]{2,5})?$/i);
-        if (m) {
-          let h = Number(m[1]);
-          ampm = m[2].toUpperCase();
-          if (m[3]) tz = m[3].toUpperCase();
-          if (ampm === 'AM') hour24 = h === 12 ? 0 : h;
-          else hour24 = h === 12 ? 12 : h + 12;
-        }
-      }
-
-      if (hour24 === null || Number.isNaN(hour24)) return { ...empty, tz };
-
-      const isPm = hour24 >= 12;
-      let hour12 = hour24 % 12;
-      if (hour12 === 0) hour12 = 12;
-
-      return {
-        hour: String(hour12),
-        minute: pad2(Math.min(59, Math.max(0, minute || 0))),
-        ampm: isPm ? 'PM' : 'AM',
-        tz: tz || 'EST'
-      };
-    }
-
-    /** App expects 24h HH:mm — it splits on ':' and ignores AM/PM words. */
-    function formatTimeForApp(hour, minute, ampm) {
-      if (!hour) return '';
-      let h = Number(hour);
-      if (Number.isNaN(h) || h < 1 || h > 12) return '';
-      const ap = (ampm || 'PM').toUpperCase();
-      if (ap === 'AM') {
-        h = h === 12 ? 0 : h;
-      } else {
-        h = h === 12 ? 12 : h + 12;
-      }
-      return \`\${pad2(h)}:\${pad2(minute || 0)}\`;
-    }
-
-    function formatTimeLabel12(hour, minute, ampm) {
-      if (!hour) return '';
-      return \`\${Number(hour)}:\${pad2(minute || 0)} \${(ampm || 'PM').toUpperCase()}\`;
-    }
-
-    function hourOptions(selected) {
-      return Array.from({ length: 12 }, (_, i) => {
-        const v = String(i + 1);
-        return \`<option value="\${v}" \${selected === v ? 'selected' : ''}>\${v}</option>\`;
-      }).join('');
-    }
-
-    function minuteOptions(selected) {
-      const opts = [];
-      for (let i = 0; i < 60; i += 1) {
-        const v = pad2(i);
-        opts.push(\`<option value="\${v}" \${selected === v ? 'selected' : ''}>\${v}</option>\`);
-      }
-      return opts.join('');
-    }
-
-    function setStatus(msg, ok) {
-      const el = document.getElementById('status');
-      el.textContent = msg;
-      el.style.color = ok ? '#86efac' : '#fca5a5';
-    }
-
-    function render() {
-      const root = document.getElementById('events');
-      if (!events.length) {
-        root.innerHTML = '<div class="empty">No events yet. Click <strong>Add Event</strong>.</div>';
-        return;
-      }
-
-      root.innerHTML = events.map((ev, i) => {
-        const t = parseTime12(ev.time);
-        return \`
-        <div class="card" data-index="\${i}">
-          <div class="card-head">
-            <div>
-              <div class="card-title">#\${i + 1} · \${esc(ev.title || 'Untitled event')}</div>
-              <div class="muted">\${esc(ev.league || 'No league')} · \${esc(ev.date || 'No date')} · \${esc(ev.time || 'No time')}\${ev.durationHours ? ' · ' + esc(ev.durationHours) + 'h' : ''}</div>
-            </div>
-            <div class="card-actions">
-              <button class="reorder" type="button" data-move="up" data-index="\${i}" \${i === 0 ? 'disabled' : ''} title="Move up">↑</button>
-              <button class="reorder" type="button" data-move="down" data-index="\${i}" \${i === events.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
-              <img class="thumb-preview" src="\${esc(ev.thumbnail || '')}" alt="" />
-            </div>
-          </div>
-          <div class="fields">
-            <label>Title<input data-field="title" value="\${esc(ev.title)}" /></label>
-            <label>League<input data-field="league" value="\${esc(ev.league)}" placeholder="UFC, PPV, WWE..." /></label>
-            <label>Channel ID (stream id)<input data-field="channel_id" value="\${esc(ev.channel_id)}" placeholder="e.g. 12847" /></label>
-            <label>Date<input data-field="date" value="\${esc(ev.date)}" placeholder="2026-08-01" /></label>
-            <label style="grid-column: span 2;">Time (12-hour)
-              <div class="time-row">
-                <select data-time="hour" aria-label="Hour">
-                  <option value="">Hour</option>
-                  \${hourOptions(t.hour)}
-                </select>
-                <select data-time="minute" aria-label="Minute">
-                  \${minuteOptions(t.minute)}
-                </select>
-                <select data-time="ampm" aria-label="AM/PM">
-                  <option value="AM" \${t.ampm === 'AM' ? 'selected' : ''}>AM</option>
-                  <option value="PM" \${t.ampm === 'PM' ? 'selected' : ''}>PM</option>
-                </select>
-                <input data-time="tz" value="\${esc(t.tz)}" placeholder="EST" aria-label="Timezone note" title="Shown in admin only; app uses HH:mm" />
-              </div>
-              <span class="muted time-preview">Saved for app as <code>\${esc(formatTimeForApp(t.hour, t.minute, t.ampm) || '—')}</code> · \${esc(formatTimeLabel12(t.hour, t.minute, t.ampm) || 'not set')}</span>
-            </label>
-            <label>Duration (hours)<input data-field="durationHours" type="number" min="1" max="48" value="\${ev.durationHours ?? 7}" placeholder="7" /></label>
-            <label>Accent color<input data-field="color" value="\${esc(ev.color)}" placeholder="#ff0000" /></label>
-            <label style="grid-column: 1 / -1;">Thumbnail URL<input data-field="thumbnail" value="\${esc(ev.thumbnail)}" /></label>
-            <label style="grid-column: 1 / -1;">Description<textarea data-field="description">\${esc(ev.description)}</textarea></label>
-            <label>Enabled
-              <select data-field="enabled">
-                <option value="true" \${ev.enabled !== false ? 'selected' : ''}>Yes</option>
-                <option value="false" \${ev.enabled === false ? 'selected' : ''}>No</option>
-              </select>
-            </label>
-          </div>
-          <div class="footer-row">
-            <button class="danger" type="button" data-remove="\${i}">Delete</button>
-            <div class="muted">Order: \${i + 1} of \${events.length}</div>
-          </div>
-        </div>
-      \`;
-      }).join('');
-
-      root.querySelectorAll('[data-field]').forEach(el => {
-        el.addEventListener('input', () => syncFromDom());
-        el.addEventListener('change', () => syncFromDom());
-      });
-
-      root.querySelectorAll('[data-time]').forEach(el => {
-        el.addEventListener('input', () => syncFromDom());
-        el.addEventListener('change', () => syncFromDom());
-      });
-
-      root.querySelectorAll('[data-remove]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          syncFromDom();
-          events.splice(Number(btn.dataset.remove), 1);
-          render();
-        });
-      });
-
-      root.querySelectorAll('[data-move]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const index = Number(btn.dataset.index);
-          const dir = btn.dataset.move;
-          const target = dir === 'up' ? index - 1 : index + 1;
-          if (target < 0 || target >= events.length) return;
-          syncFromDom();
-          const tmp = events[index];
-          events[index] = events[target];
-          events[target] = tmp;
-          render();
-          setStatus('Order updated. Click Save All to keep it.', true);
-        });
-      });
-    }
-
-    function syncFromDom() {
-      const cards = document.querySelectorAll('.card');
-      events = Array.from(cards).map((card, i) => {
-        const next = { ...events[i] };
-        card.querySelectorAll('[data-field]').forEach(el => {
-          const key = el.dataset.field;
-          if (key === 'enabled') {
-            next[key] = el.value === 'true';
-          } else if (key === 'durationHours') {
-            next[key] = parseFloat(el.value) || 7;
-          } else {
-            next[key] = el.value;
-          }
-        });
-        const hour = card.querySelector('[data-time="hour"]')?.value || '';
-        const minute = card.querySelector('[data-time="minute"]')?.value || '00';
-        const ampm = card.querySelector('[data-time="ampm"]')?.value || 'PM';
-        // Persist 24h HH:mm only — app parsers treat "8:00 PM" as 8:00 AM.
-        next.time = formatTimeForApp(hour, minute, ampm);
-        const preview = card.querySelector('.time-preview');
-        if (preview) {
-          const saved = next.time || '—';
-          const label = formatTimeLabel12(hour, minute, ampm) || 'not set';
-          preview.innerHTML = 'Saved for app as <code>' + esc(saved) + '</code> · ' + esc(label);
-        }
-        return next;
-      });
-    }
-
-    async function loadEvents() {
-      const res = await fetch('/api/custom-events');
-      events = await res.json();
-      if (!Array.isArray(events)) events = [];
-      render();
-      setStatus('Loaded ' + events.length + ' event(s).', true);
-    }
-
-    async function saveEvents() {
-      syncFromDom();
-      const res = await fetch('/api/custom-events', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(events)
-      });
-      if (!res.ok) throw new Error('Save failed');
-      setStatus('Saved ' + events.length + ' event(s). App will pick these up on next refresh.', true);
-    }
-
-    document.getElementById('addBtn').addEventListener('click', () => {
-      syncFromDom();
-      events.push(blankEvent());
-      render();
-    });
-    document.getElementById('reloadBtn').addEventListener('click', loadEvents);
-    document.getElementById('saveBtn').addEventListener('click', () => {
-      saveEvents().catch(err => setStatus(err.message, false));
-    });
-
-    loadEvents().catch(err => setStatus(err.message, false));
-  </script>
-</body>
-</html>`;
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '  <meta charset="UTF-8" />',
+    '  <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+    '  <title>VIPFLIX Exclusive Events</title>',
+    '  <style>',
+    css,
+    '  </style>',
+    '</head>',
+    '<body>',
+    '  <div class="wrap">',
+    '    <h1>VIPFLIX Exclusive Events</h1>',
+    '    <p class="sub">These show in the app Sports tab under <strong>Exclusive Events</strong>. Saved to <code>data/custom-events.json</code>.</p>',
+    '    <div class="help">',
+    '      <strong>Channel ID</strong> = your Xtream <strong>stream ID</strong> (numeric <code>streams.id</code> from XUI).',
+    '      When a user taps the event, the app plays that channel. Leave blank only if you want title-only promos.',
+    '      Use the <strong>Up / Down</strong> buttons to set the order shown in the app.',
+    '      <br/><br/>',
+    '      Set time with the <strong>12-hour</strong> controls (AM/PM). It is saved as 24-hour <code>HH:mm</code>',
+    '      (e.g. 8:00 PM becomes <code>20:00</code>) so the app shows PM correctly and does not mark tonight\'s games as ENDED.',
+    '      After updating this file, confirm AM/PM on each event, then click <strong>Save All</strong>.',
+    '    </div>',
+    '    <div class="toolbar">',
+    '      <button class="primary" id="addBtn" type="button">+ Add Event</button>',
+    '      <button class="secondary" id="reloadBtn" type="button">Reload</button>',
+    '      <button class="success" id="saveBtn" type="button">Save All</button>',
+    '    </div>',
+    '    <div id="events" class="grid"></div>',
+    '    <div class="status muted" id="status"></div>',
+    '  </div>',
+    '  <script>',
+    clientJs,
+    '  </script>',
+    '</body>',
+    '</html>'
+  ].join('\n');
 }
 
-module.exports = { readCustomEvents, writeCustomEvents, renderAdminEventsPage };
+module.exports = {
+  readCustomEvents: readCustomEvents,
+  writeCustomEvents: writeCustomEvents,
+  renderAdminEventsPage: renderAdminEventsPage
+};
