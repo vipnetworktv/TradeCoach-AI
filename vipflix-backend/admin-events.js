@@ -91,6 +91,9 @@ function renderAdminEventsPage() {
       <strong>Channel ID</strong> = your Xtream <strong>stream ID</strong> (numeric <code>streams.id</code> from XUI).
       When a user taps the event, the app plays that channel. Leave blank only if you want title-only promos.
       Use the <strong>↑ / ↓</strong> buttons to set the order shown in the app.
+      <br/><br/>
+      Set time with the <strong>12-hour</strong> controls (AM/PM). It is saved as 24-hour <code>HH:mm</code> (e.g. 8:00 PM → <code>20:00</code>) so the app shows PM correctly and does not mark tonight’s games as ENDED.
+      After updating this file, open each event, confirm AM/PM, then click <strong>Save All</strong>.
     </div>
 
     <div class="toolbar">
@@ -190,13 +193,23 @@ function renderAdminEventsPage() {
       };
     }
 
-    function formatTime12(hour, minute, ampm, tz) {
+    /** App expects 24h HH:mm — it splits on ':' and ignores AM/PM words. */
+    function formatTimeForApp(hour, minute, ampm) {
       if (!hour) return '';
-      const h = String(Number(hour));
-      const min = pad2(minute || 0);
+      let h = Number(hour);
+      if (Number.isNaN(h) || h < 1 || h > 12) return '';
       const ap = (ampm || 'PM').toUpperCase();
-      const zone = String(tz || '').trim().toUpperCase();
-      return zone ? \`\${h}:\${min} \${ap} \${zone}\` : \`\${h}:\${min} \${ap}\`;
+      if (ap === 'AM') {
+        h = h === 12 ? 0 : h;
+      } else {
+        h = h === 12 ? 12 : h + 12;
+      }
+      return \`\${pad2(h)}:\${pad2(minute || 0)}\`;
+    }
+
+    function formatTimeLabel12(hour, minute, ampm) {
+      if (!hour) return '';
+      return \`\${Number(hour)}:\${pad2(minute || 0)} \${(ampm || 'PM').toUpperCase()}\`;
     }
 
     function hourOptions(selected) {
@@ -261,8 +274,9 @@ function renderAdminEventsPage() {
                   <option value="AM" \${t.ampm === 'AM' ? 'selected' : ''}>AM</option>
                   <option value="PM" \${t.ampm === 'PM' ? 'selected' : ''}>PM</option>
                 </select>
-                <input data-time="tz" value="\${esc(t.tz)}" placeholder="EST" aria-label="Timezone" />
+                <input data-time="tz" value="\${esc(t.tz)}" placeholder="EST" aria-label="Timezone note" title="Shown in admin only; app uses HH:mm" />
               </div>
+              <span class="muted time-preview">Saved for app as <code>\${esc(formatTimeForApp(t.hour, t.minute, t.ampm) || '—')}</code> · \${esc(formatTimeLabel12(t.hour, t.minute, t.ampm) || 'not set')}</span>
             </label>
             <label>Duration (hours)<input data-field="durationHours" type="number" min="1" max="48" value="\${ev.durationHours ?? 7}" placeholder="7" /></label>
             <label>Accent color<input data-field="color" value="\${esc(ev.color)}" placeholder="#ff0000" /></label>
@@ -334,8 +348,14 @@ function renderAdminEventsPage() {
         const hour = card.querySelector('[data-time="hour"]')?.value || '';
         const minute = card.querySelector('[data-time="minute"]')?.value || '00';
         const ampm = card.querySelector('[data-time="ampm"]')?.value || 'PM';
-        const tz = card.querySelector('[data-time="tz"]')?.value || '';
-        next.time = formatTime12(hour, minute, ampm, tz);
+        // Persist 24h HH:mm only — app parsers treat "8:00 PM" as 8:00 AM.
+        next.time = formatTimeForApp(hour, minute, ampm);
+        const preview = card.querySelector('.time-preview');
+        if (preview) {
+          const saved = next.time || '—';
+          const label = formatTimeLabel12(hour, minute, ampm) || 'not set';
+          preview.innerHTML = 'Saved for app as <code>' + esc(saved) + '</code> · ' + esc(label);
+        }
         return next;
       });
     }
