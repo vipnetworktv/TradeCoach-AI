@@ -203,7 +203,7 @@ function installExclusiveChannels(app, options) {
       });
   });
 
-  app.use(function exclusiveChannelsHomeMiddleware(req, res, next) {
+  function exclusiveChannelsHomeMiddleware(req, res, next) {
     const reqPath = req.path || '';
     if (reqPath !== '/api/home') return next();
 
@@ -217,7 +217,19 @@ function installExclusiveChannels(app, options) {
       return originalJson(body);
     };
     return next();
-  });
+  }
+
+  // Prepend so this still wraps /api/home even if install() is called
+  // after the home route was already registered in index.js.
+  app.use(exclusiveChannelsHomeMiddleware);
+  try {
+    if (app._router && Array.isArray(app._router.stack) && app._router.stack.length) {
+      const layer = app._router.stack.pop();
+      app._router.stack.unshift(layer);
+    }
+  } catch (err) {
+    // ignore — middleware still registered, just may need earlier install
+  }
 }
 
 module.exports = {
